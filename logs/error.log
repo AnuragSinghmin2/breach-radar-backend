@@ -4069,3 +4069,20 @@
 [2026-06-09 16:14:09:149] [[31merror[39m]: [31mScan worker error: read ECONNRESET[39m
 [2026-06-09 16:19:33:1933] [[31merror[39m]: [31mRedis connection error: read ECONNRESET[39m
 [2026-06-09 16:19:33:1933] [[31merror[39m]: [31mScan worker error: read ECONNRESET[39m
+[2026-06-09 16:46:01:461] [[31merror[39m]: [31mError occurred: Invalid email or password. - Status: 401[39m
+[2026-06-09 16:46:01:461] [[31merror[39m]: [31mError: Invalid email or password.[39m
+[31m    at Object.loginUser (E:\REACT\backend\src\services\auth.service.js:102:17)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
+[2026-06-09 16:46:02:462] [[31merror[39m]: [31mError occurred: Invalid email or password. - Status: 401[39m
+[2026-06-09 16:46:02:462] [[31merror[39m]: [31mError: Invalid email or password.[39m
+[31m    at Object.loginUser (E:\REACT\backend\src\services\auth.service.js:102:17)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
+[2026-06-09 16:46:12:4612] [[31merror[39m]: [31mError occurred: Invalid email or password. - Status: 401[39m
+[2026-06-09 16:46:12:4612] [[31merror[39m]: [31mError: Invalid email or password.[39m
+[31m    at Object.loginUser (E:\REACT\backend\src\services\auth.service.js:102:17)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
+[2026-06-09 16:59:06:596] [[31merror[39m]: [31mRedis connection error: read ECONNRESET[39m
+[2026-06-09 16:59:06:596] [[31merror[39m]: [31mScan worker error: read ECONNRESET[39m
