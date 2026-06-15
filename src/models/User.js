@@ -27,13 +27,17 @@ const UserSchema = new mongoose.Schema({
   profile: {
     name: { type: String, required: true },
     avatar: { type: String, default: '' },
-    phoneNumber: { type: String, default: '' }
+    phoneNumber: { type: String, default: '' },
+    organization: { type: String, default: '' },
+    jobTitle: { type: String, default: '' },
+    country: { type: String, default: '' }
   },
   preferences: {
     language: { type: String, default: 'en' },
     timezone: { type: String, default: 'UTC' },
     dateFormat: { type: String, default: 'YYYY-MM-DD' },
-    activeWorkspaceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace' }
+    activeWorkspaceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace' },
+    activeOrganizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', default: null }
   },
   security: {
     mfaEnabled: { type: Boolean, default: false },
@@ -41,7 +45,8 @@ const UserSchema = new mongoose.Schema({
     lastPasswordChange: { type: Date, default: Date.now },
     sessionTimeoutMinutes: { type: Number, default: 60 },
     trustedIps: [{ type: String }]
-  }
+  },
+  lastLogin: { type: Date, default: null }
 }, {
   timestamps: true
 });

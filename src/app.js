@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
+const path = require('path');
 
 const authRoutes = require('./routes/auth.routes');
 const domainRoutes = require('./routes/domain.routes');
@@ -12,6 +13,10 @@ const reportRoutes = require('./routes/report.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const monitoringRoutes = require('./routes/monitoring.routes');
 const adminRoutes = require('./routes/admin.routes');
+const superAdminRoutes = require('./routes/superAdmin.routes');
+const userRoutes = require('./routes/user.routes');
+const teamRoutes = require('./routes/team.routes');
+const invitationRoutes = require('./routes/invitation.routes');
 
 const { generalLimiter } = require('./middleware/rateLimiter');
 const errorHandler = require('./middleware/errorHandler');
@@ -39,6 +44,11 @@ app.use('/api/', generalLimiter);
 // Payload Parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads'), {
+  setHeaders: (res) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  },
+}));
 
 // HTTP Request Logger
 app.use(morgan('combined', {
@@ -54,6 +64,10 @@ app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/monitoring', monitoringRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/super-admin', superAdminRoutes);
+app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/team', teamRoutes);
+app.use('/api/v1/invitations', invitationRoutes);
 
 // Base Check endpoint
 app.get('/health', (req, res) => {

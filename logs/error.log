@@ -4086,3 +4086,134 @@
 [31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
 [2026-06-09 16:59:06:596] [[31merror[39m]: [31mRedis connection error: read ECONNRESET[39m
 [2026-06-09 16:59:06:596] [[31merror[39m]: [31mScan worker error: read ECONNRESET[39m
+[2026-06-10 14:36:03:363] [[31merror[39m]: [31mRedis connection error: read ECONNRESET[39m
+[2026-06-10 14:36:03:363] [[31merror[39m]: [31mScan worker error: read ECONNRESET[39m
+[2026-06-12 15:58:47:5847] [[31merror[39m]: [31mRedis connection error: read ECONNRESET[39m
+[2026-06-12 15:58:47:5847] [[31merror[39m]: [31mScan worker error: read ECONNRESET[39m
+[2026-06-12 17:26:28:2628] [[31merror[39m]: [31mError occurred: Invalid email or password. - Status: 401[39m
+[2026-06-12 17:26:28:2628] [[31merror[39m]: [31mError: Invalid email or password.[39m
+[31m    at Object.loginUser (E:\REACT\backend\src\services\auth.service.js:116:17)[39m
+[31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
+[2026-06-13 15:46:07:467] [[31merror[39m]: [31mScan worker error: connect ETIMEDOUT[39m
+[2026-06-13 16:18:25:1825] [[31merror[39m]: [31mError occurred: A user with this email address already exists. - Status: 409[39m
+[2026-06-13 16:18:25:1825] [[31merror[39m]: [31mError: A user with this email address already exists.[39m
+[31m    at Object.registerUser (E:\REACT\backend\src\services\auth.service.js:41:17)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async register (E:\REACT\backend\src\controllers\auth.controller.js:10:20)[39m
+[2026-06-13 16:49:16:4916] [[31merror[39m]: [31mError occurred: Invalid email or password. - Status: 401[39m
+[2026-06-13 16:49:16:4916] [[31merror[39m]: [31mError: Invalid email or password.[39m
+[31m    at Object.loginUser (E:\REACT\backend\src\services\auth.service.js:116:17)[39m
+[31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
+[2026-06-15 13:10:22:1022] [[31merror[39m]: [31mRedis connection error: read ECONNRESET[39m
+[2026-06-15 13:10:22:1022] [[31merror[39m]: [31mScan worker error: read ECONNRESET[39m
+[2026-06-15 13:11:59:1159] [[31merror[39m]: [31mError occurred: Seat limit reached for Starter plan. - Status: 403[39m
+[2026-06-15 13:11:59:1159] [[31merror[39m]: [31mError: Seat limit reached for Starter plan.[39m
+[31m    at assertSeatAvailable (E:\REACT\backend\src\services\team.service.js:211:19)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async Object.inviteMember (E:\REACT\backend\src\services\team.service.js:290:3)[39m
+[31m    at async inviteMember (E:\REACT\backend\src\controllers\team.controller.js:14:18)[39m
+[2026-06-15 13:12:16:1216] [[31merror[39m]: [31mError occurred: Seat limit reached for Starter plan. - Status: 403[39m
+[2026-06-15 13:12:16:1216] [[31merror[39m]: [31mError: Seat limit reached for Starter plan.[39m
+[31m    at assertSeatAvailable (E:\REACT\backend\src\services\team.service.js:211:19)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async Object.inviteMember (E:\REACT\backend\src\services\team.service.js:290:3)[39m
+[31m    at async inviteMember (E:\REACT\backend\src\controllers\team.controller.js:14:18)[39m
+[2026-06-15 13:12:19:1219] [[31merror[39m]: [31mError occurred: Seat limit reached for Starter plan. - Status: 403[39m
+[2026-06-15 13:12:19:1219] [[31merror[39m]: [31mError: Seat limit reached for Starter plan.[39m
+[31m    at assertSeatAvailable (E:\REACT\backend\src\services\team.service.js:211:19)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async Object.inviteMember (E:\REACT\backend\src\services\team.service.js:290:3)[39m
+[31m    at async inviteMember (E:\REACT\backend\src\controllers\team.controller.js:14:18)[39m
+[2026-06-15 13:12:41:1241] [[31merror[39m]: [31mError occurred: Seat limit reached for Starter plan. - Status: 403[39m
+[2026-06-15 13:12:41:1241] [[31merror[39m]: [31mError: Seat limit reached for Starter plan.[39m
+[31m    at assertSeatAvailable (E:\REACT\backend\src\services\team.service.js:211:19)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async Object.inviteMember (E:\REACT\backend\src\services\team.service.js:290:3)[39m
+[31m    at async inviteMember (E:\REACT\backend\src\controllers\team.controller.js:14:18)[39m
+[2026-06-15 13:13:22:1322] [[31merror[39m]: [31mError occurred: Seat limit reached for Starter plan. - Status: 403[39m
+[2026-06-15 13:13:22:1322] [[31merror[39m]: [31mError: Seat limit reached for Starter plan.[39m
+[31m    at assertSeatAvailable (E:\REACT\backend\src\services\team.service.js:211:19)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async Object.inviteMember (E:\REACT\backend\src\services\team.service.js:290:3)[39m
+[31m    at async inviteMember (E:\REACT\backend\src\controllers\team.controller.js:14:18)[39m
+[2026-06-15 13:37:33:3733] [[31merror[39m]: [31mError occurred: Invalid email or password. - Status: 401[39m
+[2026-06-15 13:37:33:3733] [[31merror[39m]: [31mError: Invalid email or password.[39m
+[31m    at Object.loginUser (E:\REACT\backend\src\services\auth.service.js:107:17)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
+[2026-06-15 13:37:37:3737] [[31merror[39m]: [31mError occurred: Invalid email or password. - Status: 401[39m
+[2026-06-15 13:37:37:3737] [[31merror[39m]: [31mError: Invalid email or password.[39m
+[31m    at Object.loginUser (E:\REACT\backend\src\services\auth.service.js:107:17)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
+[2026-06-15 13:37:43:3743] [[31merror[39m]: [31mError occurred: Invalid email or password. - Status: 401[39m
+[2026-06-15 13:37:43:3743] [[31merror[39m]: [31mError: Invalid email or password.[39m
+[31m    at Object.loginUser (E:\REACT\backend\src\services\auth.service.js:107:17)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
+[2026-06-15 13:37:45:3745] [[31merror[39m]: [31mError occurred: Invalid email or password. - Status: 401[39m
+[2026-06-15 13:37:45:3745] [[31merror[39m]: [31mError: Invalid email or password.[39m
+[31m    at Object.loginUser (E:\REACT\backend\src\services\auth.service.js:107:17)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
+[2026-06-15 13:37:57:3757] [[31merror[39m]: [31mError occurred: Invalid email or password. - Status: 401[39m
+[2026-06-15 13:37:57:3757] [[31merror[39m]: [31mError: Invalid email or password.[39m
+[31m    at Object.loginUser (E:\REACT\backend\src\services\auth.service.js:107:17)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
+[2026-06-15 13:37:58:3758] [[31merror[39m]: [31mError occurred: Invalid email or password. - Status: 401[39m
+[2026-06-15 13:37:58:3758] [[31merror[39m]: [31mError: Invalid email or password.[39m
+[31m    at Object.loginUser (E:\REACT\backend\src\services\auth.service.js:107:17)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
+[2026-06-15 13:37:59:3759] [[31merror[39m]: [31mError occurred: Invalid email or password. - Status: 401[39m
+[2026-06-15 13:37:59:3759] [[31merror[39m]: [31mError: Invalid email or password.[39m
+[31m    at Object.loginUser (E:\REACT\backend\src\services\auth.service.js:107:17)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
+[2026-06-15 13:38:06:386] [[31merror[39m]: [31mError occurred: Invalid email or password. - Status: 401[39m
+[2026-06-15 13:38:06:386] [[31merror[39m]: [31mError: Invalid email or password.[39m
+[31m    at Object.loginUser (E:\REACT\backend\src\services\auth.service.js:107:17)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
+[2026-06-15 13:38:09:389] [[31merror[39m]: [31mError occurred: Invalid email or password. - Status: 401[39m
+[2026-06-15 13:38:09:389] [[31merror[39m]: [31mError: Invalid email or password.[39m
+[31m    at Object.loginUser (E:\REACT\backend\src\services\auth.service.js:107:17)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
+[2026-06-15 13:38:10:3810] [[31merror[39m]: [31mError occurred: Invalid email or password. - Status: 401[39m
+[2026-06-15 13:38:10:3810] [[31merror[39m]: [31mError: Invalid email or password.[39m
+[31m    at Object.loginUser (E:\REACT\backend\src\services\auth.service.js:107:17)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
+[2026-06-15 13:38:19:3819] [[31merror[39m]: [31mError occurred: Invalid email or password. - Status: 401[39m
+[2026-06-15 13:38:19:3819] [[31merror[39m]: [31mError: Invalid email or password.[39m
+[31m    at Object.loginUser (E:\REACT\backend\src\services\auth.service.js:107:17)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
+[2026-06-15 13:38:38:3838] [[31merror[39m]: [31mError occurred: Invalid email or password. - Status: 401[39m
+[2026-06-15 13:38:38:3838] [[31merror[39m]: [31mError: Invalid email or password.[39m
+[31m    at Object.loginUser (E:\REACT\backend\src\services\auth.service.js:107:17)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
+[2026-06-15 13:38:41:3841] [[31merror[39m]: [31mError occurred: Invalid email or password. - Status: 401[39m
+[2026-06-15 13:38:41:3841] [[31merror[39m]: [31mError: Invalid email or password.[39m
+[31m    at Object.loginUser (E:\REACT\backend\src\services\auth.service.js:107:17)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
+[2026-06-15 13:38:42:3842] [[31merror[39m]: [31mError occurred: Invalid email or password. - Status: 401[39m
+[2026-06-15 13:38:42:3842] [[31merror[39m]: [31mError: Invalid email or password.[39m
+[31m    at Object.loginUser (E:\REACT\backend\src\services\auth.service.js:107:17)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
+[2026-06-15 13:38:42:3842] [[31merror[39m]: [31mError occurred: Invalid email or password. - Status: 401[39m
+[2026-06-15 13:38:42:3842] [[31merror[39m]: [31mError: Invalid email or password.[39m
+[31m    at Object.loginUser (E:\REACT\backend\src\services\auth.service.js:107:17)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async login (E:\REACT\backend\src\controllers\auth.controller.js:30:20)[39m
+[2026-06-15 13:55:33:5533] [[31merror[39m]: [31mError occurred: Seat limit reached for Starter plan. - Status: 403[39m
+[2026-06-15 13:55:33:5533] [[31merror[39m]: [31mError: Seat limit reached for Starter plan.[39m
+[31m    at assertSeatAvailable (E:\REACT\backend\src\services\team.service.js:267:19)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+[31m    at async Object.inviteMember (E:\REACT\backend\src\services\team.service.js:349:3)[39m
+[31m    at async inviteMember (E:\REACT\backend\src\controllers\team.controller.js:14:18)[39m

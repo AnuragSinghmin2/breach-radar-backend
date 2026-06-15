@@ -1,7 +1,7 @@
 const USER_ROLES = {
   USER: 'user',
   ADMIN: 'admin',
-  SUPERADMIN: 'superadmin'
+  SUPER_ADMIN: 'super_admin'
 };
 
 const WORKSPACE_ROLES = {

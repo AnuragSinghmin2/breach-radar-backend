@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const { generateAccessToken, generateRefreshToken } = require('../utils/jwt');
 const { validateEmailFormat } = require('../utils/validators');
 const logger = require('../config/logger');
+const teamService = require('./team.service');
 
 const hashPassword = async (password) => {
   const salt = await bcrypt.genSalt(10);
@@ -68,6 +69,7 @@ const registerUser = async ({ email, password, name }) => {
   // 6. Connect workspace with user defaults
   user.preferences.activeWorkspaceId = workspace._id;
   await user.save();
+  await teamService.ensureOrganizationForUser(user);
 
   // 7. Sign JWT tokens
   const accessToken = generateAccessToken(user, workspace._id);
@@ -80,8 +82,11 @@ const registerUser = async ({ email, password, name }) => {
       id: user._id,
       email: user.email,
       role: user.role,
+      status: user.status,
       profile: user.profile,
-      preferences: user.preferences
+      preferences: user.preferences,
+      createdAt: user.createdAt,
+      lastLogin: user.lastLogin
     },
     accessToken,
     refreshToken
@@ -118,6 +123,10 @@ const loginUser = async ({ email, password }) => {
     throw err;
   }
 
+  user.lastLogin = new Date();
+  await user.save();
+  await teamService.recordLogin(user);
+
   // 4. Sign JWT Access & Refresh Tokens
   const activeWorkspaceId = user.preferences.activeWorkspaceId;
   const accessToken = generateAccessToken(user, activeWorkspaceId);
@@ -130,8 +139,11 @@ const loginUser = async ({ email, password }) => {
       id: user._id,
       email: user.email,
       role: user.role,
+      status: user.status,
       profile: user.profile,
-      preferences: user.preferences
+      preferences: user.preferences,
+      createdAt: user.createdAt,
+      lastLogin: user.lastLogin
     },
     accessToken,
     refreshToken
@@ -155,7 +167,7 @@ const loginAdmin = async ({ email, password }) => {
   }
 
   // 3. Verify admin permissions
-  if (user.role !== 'admin' && user.role !== 'superadmin') {
+  if (user.role !== 'admin' && user.role !== 'super_admin') {
     logger.warn(`Unauthorized admin panel login attempt from: ${email}`);
     const err = new Error('Access denied: Administrative privileges required.');
     err.statusCode = 403;
@@ -176,6 +188,10 @@ const loginAdmin = async ({ email, password }) => {
     throw err;
   }
 
+  user.lastLogin = new Date();
+  await user.save();
+  await teamService.recordLogin(user);
+
   // 5. Sign JWT Tokens
   const accessToken = generateAccessToken(user, user.preferences.activeWorkspaceId);
   const refreshToken = generateRefreshToken(user);
@@ -187,7 +203,11 @@ const loginAdmin = async ({ email, password }) => {
       id: user._id,
       email: user.email,
       role: user.role,
-      profile: user.profile
+      status: user.status,
+      profile: user.profile,
+      preferences: user.preferences,
+      createdAt: user.createdAt,
+      lastLogin: user.lastLogin
     },
     accessToken,
     refreshToken
@@ -242,4 +262,3 @@ module.exports = {
   loginAdmin,
   refreshTokens
 };
-

@@ -7,7 +7,7 @@ const { USER_ROLES } = require('../constants');
 
 // Apply JWT verification and check global role: admin or superadmin
 router.use(authenticateJWT);
-router.use(checkGlobalRole([USER_ROLES.ADMIN, USER_ROLES.SUPERADMIN]));
+router.use(checkGlobalRole([USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]));
 
 router.get('/users', adminController.getUsers);
 router.put('/users/:id/status', adminController.updateUserStatus);

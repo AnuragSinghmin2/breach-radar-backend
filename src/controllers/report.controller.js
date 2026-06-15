@@ -2,6 +2,7 @@ const Report = require('../models/Report');
 const Scan = require('../models/Scan');
 const Domain = require('../models/Domain');
 const { REPORT_TEMPLATES, REPORT_STATUS, SCAN_STATUS } = require('../constants');
+const teamService = require('../services/team.service');
 const logger = require('../config/logger');
 
 function scanTypeToReportType(scanType) {
@@ -185,6 +186,12 @@ const generateReport = async (req, res, next) => {
     ]);
 
     logger.info(`Report generated: ${reportNumber} for ${domainObj.domain}`);
+    await teamService.recordWorkspaceActivity({
+      userId: req.user._id,
+      action: 'Report download',
+      target: domainObj.domain,
+      metadata: { reportId: report._id, generated: true }
+    });
 
     res.status(201).json({
       message: 'Report generated successfully.',
@@ -206,6 +213,12 @@ const getReportFile = async (req, res, next) => {
       .populate('scanId');
 
     if (report) {
+      await teamService.recordWorkspaceActivity({
+        userId: req.user._id,
+        action: 'Report download',
+        target: report.domainId?.domain || String(report._id),
+        metadata: { reportId: report._id }
+      });
       return res.status(200).json(mapReportDocument(report));
     }
 
@@ -213,6 +226,12 @@ const getReportFile = async (req, res, next) => {
     if (!scan) {
       return res.status(404).json({ message: 'Report not found or unauthorized.' });
     }
+    await teamService.recordWorkspaceActivity({
+      userId: req.user._id,
+      action: 'Report download',
+      target: scan.domainId?.domain || String(scan._id),
+      metadata: { scanId: scan._id }
+    });
 
     res.status(200).json(mapScanToReport(scan));
   } catch (error) {

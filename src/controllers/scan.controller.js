@@ -1,4 +1,5 @@
 const scanService = require('../services/scan.service');
+const teamService = require('../services/team.service');
 const logger = require('../config/logger');
 
 // GET /api/v1/scans
@@ -55,6 +56,12 @@ const startScan = async (req, res, next) => {
     });
 
     logger.info(`Scan started for ${domain} (Type: ${scanType}) by user ${req.user.email}`);
+    await teamService.recordWorkspaceActivity({
+      userId: req.user._id,
+      action: 'Scan execution',
+      target: domain,
+      metadata: { scanId: scan._id, scanType }
+    });
 
     res.status(202).json({
       message: 'Scan successfully queued and started.',
@@ -75,6 +82,12 @@ const rerunScan = async (req, res, next) => {
     });
 
     logger.info(`Scan re-run queued for ${scan.domainId?.domain} by user ${req.user.email}`);
+    await teamService.recordWorkspaceActivity({
+      userId: req.user._id,
+      action: 'Scan execution',
+      target: scan.domainId?.domain || String(scan._id),
+      metadata: { scanId: scan._id, rerun: true }
+    });
 
     res.status(202).json({
       message: 'Scan successfully re-queued.',

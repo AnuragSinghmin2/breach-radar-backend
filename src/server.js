@@ -23,6 +23,10 @@ const startServer = async () => {
     // 1. Establish Database Connection
     await connectDB();
 
+    // 1b. Seed database with initial configs and mock records
+    const dbSeeder = require('./config/dbSeeder');
+    await dbSeeder();
+
     // 2. Establish Redis and background workers when available
     const redis = connectRedis();
 

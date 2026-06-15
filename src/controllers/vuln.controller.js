@@ -1,6 +1,7 @@
 const Vulnerability = require('../models/Vulnerability');
 const Domain = require('../models/Domain');
 const { SEVERITY_LEVELS, VULN_STATUS } = require('../constants');
+const teamService = require('../services/team.service');
 
 // GET /api/v1/vulnerabilities
 const getVulnerabilities = async (req, res, next) => {
@@ -91,6 +92,13 @@ const updateVulnerabilityStatus = async (req, res, next) => {
     }
 
     await vulnerability.save();
+    await vulnerability.populate('domainId', 'domain');
+    await teamService.recordWorkspaceActivity({
+      userId: req.user._id,
+      action: 'Vulnerability status change',
+      target: vulnerability.domainId?.domain || vulnerability.title || String(vulnerability._id),
+      metadata: { vulnerabilityId: vulnerability._id, status }
+    });
 
     res.status(200).json({
       message: 'Vulnerability status updated successfully.',

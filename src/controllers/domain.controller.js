@@ -9,6 +9,7 @@ const {
   verifyDomainDns,
   verifyDomainHtml
 } = require('../services/domain.verification.service');
+const teamService = require('../services/team.service');
 const { DOMAIN_VERIFICATION_STATUS } = require('../constants');
 const logger = require('../config/logger');
 
@@ -209,6 +210,12 @@ const addDomain = async (req, res, next) => {
 
     await newDomain.save();
     logger.info(`Domain added: ${formattedDomain} in Workspace ${workspaceId} by user ${req.user.email}`);
+    await teamService.recordWorkspaceActivity({
+      userId: req.user._id,
+      action: 'Domain addition',
+      target: formattedDomain,
+      metadata: { domainId: newDomain._id }
+    });
 
     res.status(201).json({
       ...newDomain.toObject(),
