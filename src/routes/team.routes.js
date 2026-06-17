@@ -10,6 +10,7 @@ router.use(authenticateJWT);
 router.get('/', teamController.getTeam);
 router.post('/invite', requireTeamRole(['OWNER', 'ADMIN']), teamController.inviteMember);
 router.get('/invitations', requireTeamRole(['OWNER', 'ADMIN']), teamController.getInvitations);
+router.get('/debug/email-status', requireTeamRole(['OWNER', 'ADMIN']), teamController.getEmailStatus);
 router.post('/invite/:id/resend', requireTeamRole(['OWNER', 'ADMIN']), teamController.resendInvitation);
 router.patch('/invite/:id/revoke', requireTeamRole(['OWNER', 'ADMIN']), teamController.revokeInvitation);
 router.delete('/invite/:id', requireTeamRole(['OWNER', 'ADMIN']), teamController.deleteInvitation);

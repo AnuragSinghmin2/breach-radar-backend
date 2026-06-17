@@ -191,6 +191,29 @@ const addDomain = async (req, res, next) => {
     }
     const formattedDomain = domainValidation.domain;
 
+    const Workspace = require('../models/Workspace');
+    const Organization = require('../models/Organization');
+    const SubscriptionPlan = require('../models/SubscriptionPlan');
+
+    const workspace = await Workspace.findById(workspaceId);
+    if (!workspace) {
+      return res.status(400).json({ message: 'Workspace context not found.' });
+    }
+
+    const org = await Organization.findOne({ ownerId: workspace.owner });
+    if (org) {
+      const plan = await SubscriptionPlan.findOne({ name: org.subscriptionPlan });
+      const limit = plan ? plan.domainLimit : 1;
+      const used = await Domain.countDocuments({ workspaceId });
+      
+      if (used >= limit && limit < 999999) {
+        return res.status(403).json({
+          message: `Domain limit reached. Your current plan (${org.subscriptionPlan}) allows max ${limit} domains. Please upgrade to add more domains.`,
+          code: 'LIMIT_EXCEEDED'
+        });
+      }
+    }
+
     const existing = await Domain.findOne({ workspaceId, domain: formattedDomain });
     if (existing) {
       return res.status(409).json({ message: `Domain "${formattedDomain}" already exists in this workspace.` });

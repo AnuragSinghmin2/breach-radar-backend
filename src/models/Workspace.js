@@ -39,11 +39,14 @@ const WorkspaceSchema = new mongoose.Schema({
     joinedAt: { type: Date }
   }],
   scanPreferences: {
+    scanDepth: { type: Number, default: 3 },
     concurrencyLimit: { type: Number, default: 2 },
-    depthLimit: { type: Number, default: 3 },
-    agentLocation: { type: String, default: 'US-East' },
-    timeoutMinutes: { type: Number, default: 15 },
-    exclusions: [{ type: String }]
+    timeout: { type: Number, default: 15 },
+    followRedirects: { type: Boolean, default: true },
+    scanSchedule: { type: String, default: 'weekly' },
+    includeSubdomains: { type: Boolean, default: true },
+    portScanEnabled: { type: Boolean, default: true },
+    technologyFingerprinting: { type: Boolean, default: true }
   },
   notifications: {
     channels: {
@@ -61,6 +64,13 @@ const WorkspaceSchema = new mongoose.Schema({
       },
       inApp: {
         enabled: { type: Boolean, default: true }
+      },
+      dashboard: {
+        enabled: { type: Boolean, default: true }
+      },
+      sms: {
+        enabled: { type: Boolean, default: false },
+        phoneNumber: { type: String, default: '' }
       }
     },
     events: {
@@ -71,7 +81,17 @@ const WorkspaceSchema = new mongoose.Schema({
         type: String,
         enum: ['daily', 'weekly'],
         default: 'weekly'
-      }
+      },
+      criticalVulnerabilities: { type: Boolean, default: true },
+      scanCompleted: { type: Boolean, default: true },
+      monitorDown: { type: Boolean, default: true },
+      reportReady: { type: Boolean, default: true },
+      remediationDue: { type: Boolean, default: false }
+    },
+    digest: {
+      frequency: { type: String, default: 'Daily' },
+      time: { type: String, default: '08:00' },
+      recipient: { type: String, default: '' }
     }
   },
   integrations: {

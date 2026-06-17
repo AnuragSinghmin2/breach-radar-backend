@@ -6,9 +6,15 @@ const TeamInvitation = require('../models/TeamInvitation');
 const TeamActivity = require('../models/TeamActivity');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
+const logger = require('../config/logger');
 const { validateEmailFormat } = require('../utils/validators');
 const { logTeamAudit } = require('../utils/teamAuditLogger');
-const { sendInvitationEmail } = require('./email/resend.service');
+const {
+  buildInvitationLink,
+  getEmailStatus,
+  sendInvitationEmail,
+  verifySenderDomainStatus,
+} = require('./email/resend.service');
 
 const ROLES = ['OWNER', 'ADMIN', 'ANALYST', 'VIEWER', 'AUDITOR'];
 const INVITABLE_ROLES = ['ADMIN', 'ANALYST', 'VIEWER', 'AUDITOR'];
@@ -106,6 +112,7 @@ function mapInvitation(invitation) {
     invitedBy: mapUser(invitation.invitedBy),
     createdAt: invitation.createdAt,
     acceptedAt: invitation.acceptedAt,
+    inviteLink: invitation.token ? buildInvitationLink(invitation.token) : null,
   };
 }
 
@@ -132,6 +139,42 @@ async function logTeamActivity({ organizationId, userId, action, target = '', me
 
 async function notify({ organizationId, userId = null, email = '', type, title, message }) {
   return Notification.create({ organizationId, userId, email, type, title, message });
+}
+
+function mapEmailFailure(error) {
+  return {
+    success: false,
+    error: error.message,
+    code: error.code || 'EMAIL_DELIVERY_FAILED',
+    statusCode: error.statusCode || null,
+  };
+}
+
+async function deliverInvitationEmail({ email, organization, role, token, expiresAt, resend = false }) {
+  logger.info(`[team-invite] Email sending function executing for ${email}.`);
+
+  try {
+    const response = await sendInvitationEmail({
+      to: email,
+      organizationName: organization.name,
+      role,
+      token,
+      expiresAt,
+    });
+
+    return {
+      success: true,
+      provider: 'resend',
+      responseId: response?.id || null,
+      resent: resend,
+    };
+  } catch (error) {
+    logger.error(`[team-invite] Email delivery failed for ${email}: ${error.message}`);
+    if (error.details) {
+      logger.error(`[team-invite] Exact Resend error payload: ${JSON.stringify(error.details)}`);
+    }
+    return mapEmailFailure(error);
+  }
 }
 
 async function ensureOrganizationForUser(user) {
@@ -343,6 +386,7 @@ async function getDashboard(userId, query = {}) {
 }
 
 async function inviteMember(userId, payload) {
+  logger.info(`[team-invite] Invitation request received from user ${userId}.`);
   const { organization, actorMember } = await getContext(userId);
   assertManager(actorMember);
   await expirePendingInvitations(organization._id);
@@ -407,15 +451,17 @@ async function inviteMember(userId, payload) {
     expiresAt,
     invitedBy: userId,
   });
+  logger.info(`[team-invite] Invitation saved: ${invitation._id} for ${email}.`);
+
+  const emailDelivery = await deliverInvitationEmail({
+    email,
+    organization,
+    role,
+    token,
+    expiresAt,
+  });
 
   await Promise.all([
-    sendInvitationEmail({
-      to: email,
-      organizationName: organization.name,
-      role,
-      token,
-      expiresAt,
-    }),
     logTeamActivity({ organizationId: organization._id, userId, action: 'Invitation Sent', target: email, metadata: { role } }),
     logTeamAudit({
       userId,
@@ -431,7 +477,15 @@ async function inviteMember(userId, payload) {
     }),
   ]);
 
-  return { message: `Invitation sent to ${email}.`, invitation: mapInvitation(invitation) };
+  const message = emailDelivery.success
+    ? `Invitation sent to ${email}.`
+    : 'Invitation created but email delivery failed.';
+
+  return {
+    message,
+    invitation: mapInvitation(invitation),
+    emailDelivery,
+  };
 }
 
 async function getInvitationByToken(token) {
@@ -629,15 +683,18 @@ async function resendInvitation(userId, invitationId) {
   invitation.token = crypto.randomBytes(32).toString('hex');
   invitation.expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   await invitation.save();
+  logger.info(`[team-invite] Resend invitation saved with fresh token: ${invitation._id} for ${invitation.email}.`);
+
+  const emailDelivery = await deliverInvitationEmail({
+    email: invitation.email,
+    organization,
+    role: invitation.role,
+    token: invitation.token,
+    expiresAt: invitation.expiresAt,
+    resend: true,
+  });
 
   await Promise.all([
-    sendInvitationEmail({
-      to: invitation.email,
-      organizationName: organization.name,
-      role: invitation.role,
-      token: invitation.token,
-      expiresAt: invitation.expiresAt,
-    }),
     logTeamActivity({ organizationId: organization._id, userId, action: 'Invitation Sent', target: invitation.email, metadata: { resent: true } }),
     logTeamAudit({ userId, action: 'Invitation Sent', description: `Invitation resent to ${invitation.email}.` }),
     notify({
@@ -649,7 +706,30 @@ async function resendInvitation(userId, invitationId) {
     }),
   ]);
 
-  return { message: `Invitation resent to ${invitation.email}.`, invitation: mapInvitation(invitation) };
+  const message = emailDelivery.success
+    ? `Invitation resent to ${invitation.email}.`
+    : 'Invitation created but email delivery failed.';
+
+  return { message, invitation: mapInvitation(invitation), emailDelivery };
+}
+
+async function getEmailDebugStatus() {
+  let senderDomain = null;
+  try {
+    senderDomain = await verifySenderDomainStatus();
+  } catch (error) {
+    logger.error(`[team-invite-email] Sender domain verification failed: ${error.message}`);
+    senderDomain = {
+      senderEmail: getEmailStatus().senderEmail,
+      verified: false,
+      reason: error.message,
+    };
+  }
+
+  return {
+    ...getEmailStatus(),
+    senderDomain,
+  };
 }
 
 async function revokeInvitation(userId, invitationId) {
@@ -897,12 +977,14 @@ module.exports = {
   ROLE_PERMISSIONS,
   PLAN_SEATS,
   ensureOrganizationForUser,
+  getContext,
   getDashboard,
   inviteMember,
   getInvitationByToken,
   acceptInvitation,
   getInvitations,
   resendInvitation,
+  getEmailDebugStatus,
   revokeInvitation,
   deleteInvitation,
   updateMemberRole,

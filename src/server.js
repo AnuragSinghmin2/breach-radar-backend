@@ -1,4 +1,5 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const http = require('http');
 const app = require('./app');
 const connectDB = require('./config/db');
@@ -15,8 +16,6 @@ const logger = require('./config/logger');
 
 const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
-
-console.log("MONGODB_URI =", process.env.MONGODB_URI);
 
 const startServer = async () => {
   try {

@@ -36,6 +36,15 @@ const resendInvitation = async (req, res, next) => {
   }
 };
 
+const getEmailStatus = async (req, res, next) => {
+  try {
+    const data = await teamService.getEmailDebugStatus();
+    res.status(200).json(data);
+  } catch (error) {
+    next(error);
+  }
+};
+
 const revokeInvitation = async (req, res, next) => {
   try {
     const data = await teamService.revokeInvitation(req.user._id, req.params.id);
@@ -95,6 +104,7 @@ module.exports = {
   inviteMember,
   getInvitations,
   resendInvitation,
+  getEmailStatus,
   revokeInvitation,
   deleteInvitation,
   updateMemberRole,

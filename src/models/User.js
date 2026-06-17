@@ -30,7 +30,8 @@ const UserSchema = new mongoose.Schema({
     phoneNumber: { type: String, default: '' },
     organization: { type: String, default: '' },
     jobTitle: { type: String, default: '' },
-    country: { type: String, default: '' }
+    country: { type: String, default: '' },
+    plan: { type: String, default: 'Starter' }
   },
   preferences: {
     language: { type: String, default: 'en' },
@@ -45,6 +46,15 @@ const UserSchema = new mongoose.Schema({
     lastPasswordChange: { type: Date, default: Date.now },
     sessionTimeoutMinutes: { type: Number, default: 60 },
     trustedIps: [{ type: String }]
+  },
+  notifications: {
+    emailAlerts: { type: Boolean, default: true },
+    scanCompleted: { type: Boolean, default: true },
+    vulnerabilityDetected: { type: Boolean, default: true },
+    weeklyReports: { type: Boolean, default: true },
+    billingAlerts: { type: Boolean, default: true },
+    teamInvitations: { type: Boolean, default: true },
+    marketingEmails: { type: Boolean, default: false }
   },
   lastLogin: { type: Date, default: null }
 }, {

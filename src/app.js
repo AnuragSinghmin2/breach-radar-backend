@@ -17,6 +17,15 @@ const superAdminRoutes = require('./routes/superAdmin.routes');
 const userRoutes = require('./routes/user.routes');
 const teamRoutes = require('./routes/team.routes');
 const invitationRoutes = require('./routes/invitation.routes');
+const billingRoutes = require('./routes/billing.routes');
+const paymentRoutes = require('./routes/payment.routes');
+const notificationRoutes = require('./routes/notification.routes');
+const settingsRoutes = require('./routes/settings.routes');
+const securityRoutes = require('./routes/security.routes');
+const apiAccessRoutes = require('./routes/apiAccess.routes');
+const integrationRoutes = require('./routes/integration.routes');
+// const activityLogRoutes = require('./routes/activityLog.routes');
+
 
 const { generalLimiter } = require('./middleware/rateLimiter');
 const errorHandler = require('./middleware/errorHandler');
@@ -68,6 +77,17 @@ app.use('/api/v1/super-admin', superAdminRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/team', teamRoutes);
 app.use('/api/v1/invitations', invitationRoutes);
+app.use('/api/v1/billing', billingRoutes);
+app.use('/api/payment', paymentRoutes);
+app.use('/api/v1/payment', paymentRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/v1/settings', settingsRoutes);
+app.use('/api/v1/security', securityRoutes);
+app.use('/api/v1/api-access', apiAccessRoutes);
+app.use('/api/v1/integrations', integrationRoutes);
+// app.use('/api/v1/activity-log', activityLogRoutes);
+app.use('/api/team', teamRoutes);
+
 
 // Base Check endpoint
 app.get('/health', (req, res) => {

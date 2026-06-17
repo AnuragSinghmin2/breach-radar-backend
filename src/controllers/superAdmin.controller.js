@@ -5,7 +5,9 @@ const Scan = require('../models/Scan');
 const Vulnerability = require('../models/Vulnerability');
 const Workspace = require('../models/Workspace');
 const SubscriptionPlan = require('../models/SubscriptionPlan');
-const Payment = require('../models/Payment');
+const Subscription = require('../models/Subscription');
+const Invoice = require('../models/Invoice');
+const PaymentTransaction = require('../models/PaymentTransaction');
 const SupportTicket = require('../models/SupportTicket');
 const AuditLog = require('../models/AuditLog');
 const Organization = require('../models/Organization');
@@ -25,11 +27,11 @@ const getDashboardStats = async (req, res, next) => {
     const totalVulnerabilities = await Vulnerability.countDocuments();
 
     // Calculate total revenue from payment histories (succeeded - refunded)
-    const succeededPayments = await Payment.aggregate([
+    const succeededPayments = await PaymentTransaction.aggregate([
       { $match: { status: 'succeeded' } },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ]);
-    const refundedPayments = await Payment.aggregate([
+    const refundedPayments = await PaymentTransaction.aggregate([
       { $match: { status: 'refunded' } },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ]);
@@ -38,7 +40,7 @@ const getDashboardStats = async (req, res, next) => {
     const totalRevenue = Math.max(0, revSucceeded - revRefunded);
 
     // Active subscriptions count (users with active status and non-free plans, or active user count)
-    const activeSubscriptions = await User.countDocuments({
+    const activeSubscriptions = await Subscription.countDocuments({
       status: 'active'
     });
 
@@ -81,7 +83,7 @@ const getDashboardStats = async (req, res, next) => {
     });
 
     // Revenue Analytics (grouped by month or recent payments)
-    const revenueAnalyticsRaw = await Payment.aggregate([
+    const revenueAnalyticsRaw = await PaymentTransaction.aggregate([
       { $match: { status: 'succeeded' } },
       {
         $group: {
@@ -317,6 +319,20 @@ const upgradeUserSubscription = async (req, res, next) => {
 
     user.profile.plan = planName;
     await user.save();
+
+    const org = await Organization.findOne({ ownerId: user._id });
+    if (org) {
+      org.subscriptionPlan = planName;
+      if (plan) org.maxSeats = plan.seatLimit;
+      await org.save();
+
+      const sub = await Subscription.findOne({ organizationId: org._id });
+      if (sub) {
+        sub.currentPlan = planName;
+        sub.paymentStatus = planName === 'Starter' || planName === 'Free' ? 'free' : 'paid';
+        await sub.save();
+      }
+    }
 
     await logAuditEvent({
       req,
@@ -619,7 +635,7 @@ const deleteSubscriptionPlan = async (req, res, next) => {
 // 7. PAYMENTS MANAGEMENT
 const getPayments = async (req, res, next) => {
   try {
-    const payments = await Payment.find()
+    const payments = await PaymentTransaction.find()
       .populate('userId', 'email profile.name')
       .sort({ createdAt: -1 });
 
@@ -645,9 +661,9 @@ const getPayments = async (req, res, next) => {
 
 const refundPayment = async (req, res, next) => {
   try {
-    const payment = await Payment.findById(req.params.id);
+    const payment = await PaymentTransaction.findById(req.params.id);
     if (!payment) {
-      return res.status(404).json({ message: 'Payment record not found' });
+      return res.status(404).json({ message: 'Payment transaction record not found' });
     }
 
     if (payment.status === 'refunded') {
@@ -655,17 +671,21 @@ const refundPayment = async (req, res, next) => {
     }
 
     payment.status = 'refunded';
-    payment.refunded = true;
     await payment.save();
+
+    // Mark corresponding invoice as cancelled/refunded if exists
+    if (payment.invoiceId) {
+      await Invoice.findByIdAndUpdate(payment.invoiceId, { paymentStatus: 'cancelled' });
+    }
 
     await logAuditEvent({
       req,
       action: 'Payment Refunded',
-      description: `Refunded payment transaction ${payment.transactionId} of $${payment.amount}`,
+      description: `Refunded payment transaction ${payment.transactionId} of ${payment.currency} ${payment.amount}`,
       userId: req.user._id
     });
 
-    res.status(200).json({ message: 'Payment successfully refunded', payment });
+    res.status(200).json({ message: 'Payment transaction successfully refunded', payment });
   } catch (error) {
     next(error);
   }
@@ -848,6 +868,93 @@ const getInvitations = async (req, res, next) => {
   }
 };
 
+const getCustomerSubscriptions = async (req, res, next) => {
+  try {
+    const subscriptions = await Subscription.find()
+      .populate('userId', 'email profile.name')
+      .populate('organizationId', 'name')
+      .sort({ createdAt: -1 });
+    res.status(200).json(subscriptions);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const changeCustomerPlan = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { planName } = req.body;
+
+    const plan = await SubscriptionPlan.findOne({ name: planName });
+    if (!plan) {
+      return res.status(404).json({ message: `Plan "${planName}" not found.` });
+    }
+
+    const subscription = await Subscription.findById(id);
+    if (!subscription) {
+      return res.status(404).json({ message: 'Subscription details not found.' });
+    }
+
+    subscription.currentPlan = plan.name;
+    subscription.paymentStatus = plan.price > 0 ? 'paid' : 'free';
+    await subscription.save();
+
+    const organization = await Organization.findById(subscription.organizationId);
+    if (organization) {
+      organization.subscriptionPlan = plan.name;
+      organization.maxSeats = plan.seatLimit;
+      await organization.save();
+    }
+
+    const user = await User.findById(subscription.userId);
+    if (user) {
+      user.profile.plan = plan.name;
+      await user.save();
+    }
+
+    await logAuditEvent({
+      req,
+      action: 'Superadmin Manual Upgrade',
+      description: `Superadmin manual adjustment of org ${organization?.name} to plan ${planName}`,
+      userId: req.user._id
+    });
+
+    res.status(200).json({ message: `Manually changed subscription to ${planName}.`, subscription });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateCustomerSubscriptionStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!['active', 'suspended', 'cancelled', 'expired'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid subscription status.' });
+    }
+
+    const subscription = await Subscription.findById(id);
+    if (!subscription) {
+      return res.status(404).json({ message: 'Subscription details not found.' });
+    }
+
+    subscription.status = status;
+    if (status === 'suspended') {
+      subscription.suspendedAt = new Date();
+      subscription.paymentStatus = 'suspended';
+    } else if (status === 'active') {
+      subscription.suspendedAt = null;
+      subscription.paymentStatus = subscription.currentPlan === 'Starter' ? 'free' : 'paid';
+    }
+    await subscription.save();
+
+    res.status(200).json({ message: `Subscription status updated to ${status}.`, subscription });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getDashboardStats,
   getUsers,
@@ -876,5 +983,8 @@ module.exports = {
   getSystemHealth,
   getReports,
   getOrganizations,
-  getInvitations
+  getInvitations,
+  getCustomerSubscriptions,
+  changeCustomerPlan,
+  updateCustomerSubscriptionStatus
 };

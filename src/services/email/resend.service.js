@@ -1,6 +1,14 @@
 const logger = require('../../config/logger');
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
+const RESEND_DOMAINS_ENDPOINT = 'https://api.resend.com/domains';
+const DEFAULT_SENDER = 'noreply@yourdomain.com';
+
+let lastEmailStatus = {
+  lastEmailAttempt: null,
+  lastEmailError: null,
+  lastEmailSuccess: null,
+};
 
 function getFrontendInviteBaseUrl() {
   return process.env.FRONTEND_INVITE_BASE_URL || 'https://breach-radar-frontend.vercel.app/invite';
@@ -17,7 +25,7 @@ function formatDate(value) {
 }
 
 function buildInvitationEmail({ organizationName, role, token, expiresAt }) {
-  const acceptUrl = `${getFrontendInviteBaseUrl()}/${token}`;
+  const acceptUrl = buildInvitationLink(token);
   const expiry = formatDate(expiresAt);
 
   return {
@@ -50,13 +58,66 @@ function buildInvitationEmail({ organizationName, role, token, expiresAt }) {
   };
 }
 
+function buildInvitationLink(token) {
+  return `${getFrontendInviteBaseUrl()}/${token}`;
+}
+
+function getSenderEmail() {
+  return process.env.EMAIL_FROM || process.env.FROM_EMAIL || DEFAULT_SENDER;
+}
+
+function maskEmailPayload(payload) {
+  return {
+    from: payload.from,
+    to: payload.to,
+    subject: payload.subject,
+    hasHtml: Boolean(payload.html),
+    hasText: Boolean(payload.text),
+  };
+}
+
+function updateLastEmailStatus({ success, error = null }) {
+  lastEmailStatus = {
+    lastEmailAttempt: new Date().toISOString(),
+    lastEmailError: error,
+    lastEmailSuccess: success,
+  };
+}
+
+function getEmailStatus() {
+  const senderEmail = getSenderEmail();
+  return {
+    resendConfigured: Boolean(process.env.RESEND_API_KEY),
+    senderEmail,
+    resendMode: senderEmail.endsWith('@resend.dev') ? 'test' : 'production',
+    ...lastEmailStatus,
+  };
+}
+
+function buildEmailError(payload, responseStatus) {
+  const resendMessage = payload.message || payload.error || 'Resend email delivery failed.';
+  const error = new Error(resendMessage);
+  error.statusCode = responseStatus;
+  error.code = payload.name || payload.code || 'RESEND_DELIVERY_FAILED';
+  error.details = payload;
+  return error;
+}
+
 async function sendEmail({ to, subject, html, text }) {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM || 'noreply@yourdomain.com';
+  const from = getSenderEmail();
+  const emailPayload = { from, to, subject, html, text };
+
+  logger.info(`[team-invite-email] Email payload generated: ${JSON.stringify(maskEmailPayload(emailPayload))}`);
 
   if (!apiKey) {
-    logger.warn(`RESEND_API_KEY is not configured. Email to ${to} was not sent.`);
-    return { skipped: true, reason: 'RESEND_API_KEY missing' };
+    const reason = 'RESEND_API_KEY missing';
+    updateLastEmailStatus({ success: false, error: reason });
+    logger.warn(`[team-invite-email] ${reason}. Email to ${to} was not sent.`);
+    const error = new Error('Email provider is not configured. Invitation was created but email was not sent.');
+    error.statusCode = 503;
+    error.code = 'RESEND_API_KEY_MISSING';
+    throw error;
   }
 
   const response = await fetch(RESEND_ENDPOINT, {
@@ -65,16 +126,27 @@ async function sendEmail({ to, subject, html, text }) {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ from, to, subject, html, text }),
+    body: JSON.stringify(emailPayload),
   });
 
   const payload = await response.json().catch(() => ({}));
+  logger.info(`[team-invite-email] Resend API response: ${JSON.stringify({
+    ok: response.ok,
+    status: response.status,
+    id: payload.id,
+    name: payload.name,
+    message: payload.message,
+  })}`);
+
   if (!response.ok) {
-    const error = new Error(payload.message || 'Resend email delivery failed.');
-    error.statusCode = response.status;
+    const error = buildEmailError(payload, response.status);
+    updateLastEmailStatus({ success: false, error: error.message });
+    logger.error(`[team-invite-email] Email delivery failed for ${to}: ${error.message}`);
     throw error;
   }
 
+  updateLastEmailStatus({ success: true });
+  logger.info(`[team-invite-email] Email delivery accepted by Resend for ${to}. Message id: ${payload.id || 'unknown'}`);
   return payload;
 }
 
@@ -83,7 +155,64 @@ async function sendInvitationEmail({ to, organizationName, role, token, expiresA
   return sendEmail({ to, ...template });
 }
 
+async function verifySenderDomainStatus() {
+  const apiKey = process.env.RESEND_API_KEY;
+  const senderEmail = getSenderEmail();
+  const senderDomain = senderEmail.split('@')[1] || '';
+
+  if (!apiKey) {
+    return {
+      configured: false,
+      senderEmail,
+      senderDomain,
+      verified: false,
+      reason: 'RESEND_API_KEY missing',
+    };
+  }
+
+  if (!senderDomain || senderDomain === 'resend.dev') {
+    return {
+      configured: true,
+      senderEmail,
+      senderDomain,
+      verified: senderDomain === 'resend.dev',
+      reason: senderDomain === 'resend.dev' ? 'Using Resend onboarding sender.' : 'Sender email is invalid.',
+    };
+  }
+
+  const response = await fetch(RESEND_DOMAINS_ENDPOINT, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    return {
+      configured: true,
+      senderEmail,
+      senderDomain,
+      verified: false,
+      reason: payload.message || 'Could not verify sender domain through Resend.',
+      statusCode: response.status,
+    };
+  }
+
+  const domains = Array.isArray(payload.data) ? payload.data : [];
+  const match = domains.find((domain) => domain.name === senderDomain);
+
+  return {
+    configured: true,
+    senderEmail,
+    senderDomain,
+    verified: Boolean(match && match.status === 'verified'),
+    status: match?.status || 'not_found',
+    reason: match ? `Resend domain status is ${match.status}.` : 'Sender domain is not present in Resend verified domains.',
+  };
+}
+
 module.exports = {
   sendInvitationEmail,
   buildInvitationEmail,
+  buildInvitationLink,
+  getEmailStatus,
+  verifySenderDomainStatus,
 };

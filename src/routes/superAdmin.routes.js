@@ -38,11 +38,16 @@ router.get('/vulnerabilities', superAdminController.getVulnerabilities);
 // Reports audit
 router.get('/reports', superAdminController.getReports);
 
-// Subscriptions Management
+// Subscriptions Management (Tiers)
 router.get('/subscriptions', superAdminController.getSubscriptionPlans);
 router.post('/subscriptions', superAdminController.createSubscriptionPlan);
 router.put('/subscriptions/:id', superAdminController.updateSubscriptionPlan);
 router.delete('/subscriptions/:id', superAdminController.deleteSubscriptionPlan);
+
+// Customer Subscriptions Visibility & Operations
+router.get('/subscriptions/customers', superAdminController.getCustomerSubscriptions);
+router.put('/subscriptions/customers/:id/plan', superAdminController.changeCustomerPlan);
+router.put('/subscriptions/customers/:id/status', superAdminController.updateCustomerSubscriptionStatus);
 
 // Payments Management
 router.get('/payments', superAdminController.getPayments);

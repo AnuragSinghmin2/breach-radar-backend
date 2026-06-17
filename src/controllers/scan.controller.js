@@ -47,6 +47,36 @@ const startScan = async (req, res, next) => {
   try {
     const { domain, scanType, checks } = req.body;
 
+    const Workspace = require('../models/Workspace');
+    const Organization = require('../models/Organization');
+    const SubscriptionPlan = require('../models/SubscriptionPlan');
+    const Subscription = require('../models/Subscription');
+    const Scan = require('../models/Scan');
+
+    const workspace = await Workspace.findById(req.workspaceId);
+    if (!workspace) {
+      return res.status(400).json({ message: 'Workspace context not found.' });
+    }
+
+    const org = await Organization.findOne({ ownerId: workspace.owner });
+    if (org) {
+      const plan = await SubscriptionPlan.findOne({ name: org.subscriptionPlan });
+      const limit = plan ? plan.scanLimit : 5;
+      
+      if (limit < 999999) {
+        const sub = await Subscription.findOne({ organizationId: org._id });
+        const since = sub ? sub.startDate : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        const scansUsed = await Scan.countDocuments({ workspaceId: req.workspaceId, createdAt: { $gte: since } });
+        
+        if (scansUsed >= limit) {
+          return res.status(403).json({
+            message: `Scan limit reached. Your current plan (${org.subscriptionPlan}) allows max ${limit} scans per billing cycle. You have used ${scansUsed} scans. Please upgrade to run more scans.`,
+            code: 'LIMIT_EXCEEDED'
+          });
+        }
+      }
+    }
+
     const scan = await scanService.startScan({
       workspaceId: req.workspaceId,
       userId: req.user._id,
@@ -75,6 +105,36 @@ const startScan = async (req, res, next) => {
 // POST /api/v1/scans/:id/rerun
 const rerunScan = async (req, res, next) => {
   try {
+    const Workspace = require('../models/Workspace');
+    const Organization = require('../models/Organization');
+    const SubscriptionPlan = require('../models/SubscriptionPlan');
+    const Subscription = require('../models/Subscription');
+    const Scan = require('../models/Scan');
+
+    const workspace = await Workspace.findById(req.workspaceId);
+    if (!workspace) {
+      return res.status(400).json({ message: 'Workspace context not found.' });
+    }
+
+    const org = await Organization.findOne({ ownerId: workspace.owner });
+    if (org) {
+      const plan = await SubscriptionPlan.findOne({ name: org.subscriptionPlan });
+      const limit = plan ? plan.scanLimit : 5;
+      
+      if (limit < 999999) {
+        const sub = await Subscription.findOne({ organizationId: org._id });
+        const since = sub ? sub.startDate : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        const scansUsed = await Scan.countDocuments({ workspaceId: req.workspaceId, createdAt: { $gte: since } });
+        
+        if (scansUsed >= limit) {
+          return res.status(403).json({
+            message: `Scan limit reached. Your current plan (${org.subscriptionPlan}) allows max ${limit} scans per billing cycle. You have used ${scansUsed} scans. Please upgrade to run more scans.`,
+            code: 'LIMIT_EXCEEDED'
+          });
+        }
+      }
+    }
+
     const scan = await scanService.rerunScan({
       workspaceId: req.workspaceId,
       userId: req.user._id,
