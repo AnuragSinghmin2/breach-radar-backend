@@ -51,10 +51,33 @@ const InvoiceSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  pdfUrl: {
+    type: String,
+    default: '',
+  },
+  storageProvider: {
+    type: String,
+    enum: ['local', 's3'],
+    default: 'local',
+  },
   generatedAt: {
     type: Date,
     default: Date.now,
     index: true,
+  },
+  emailDeliveryStatus: {
+    type: String,
+    enum: ['pending', 'sent', 'failed'],
+    default: 'pending',
+    index: true,
+  },
+  emailDeliveryError: {
+    type: String,
+    default: '',
+  },
+  emailDeliveryAttempts: {
+    type: Number,
+    default: 0,
   },
 }, {
   timestamps: true,

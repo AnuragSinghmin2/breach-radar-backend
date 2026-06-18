@@ -86,6 +86,15 @@ const startScan = async (req, res, next) => {
     });
 
     logger.info(`Scan started for ${domain} (Type: ${scanType}) by user ${req.user.email}`);
+    
+    if (org) {
+      const billingService = require('../services/billing.service');
+      billingService.checkUsageAlerts(org._id, req.user._id).catch(err => logger.error(`[alert-check-err] ${err.message}`));
+    }
+
+    const { logRequestAudit } = require('../services/audit.service');
+    await logRequestAudit(req, 'Scan Started', `Scan started for domain ${domain}.`);
+
     await teamService.recordWorkspaceActivity({
       userId: req.user._id,
       action: 'Scan execution',
@@ -142,6 +151,15 @@ const rerunScan = async (req, res, next) => {
     });
 
     logger.info(`Scan re-run queued for ${scan.domainId?.domain} by user ${req.user.email}`);
+    
+    if (org) {
+      const billingService = require('../services/billing.service');
+      billingService.checkUsageAlerts(org._id, req.user._id).catch(err => logger.error(`[alert-check-err] ${err.message}`));
+    }
+
+    const { logRequestAudit } = require('../services/audit.service');
+    await logRequestAudit(req, 'Scan Started', `Scan re-run started for domain ${scan.domainId?.domain || ''}.`);
+
     await teamService.recordWorkspaceActivity({
       userId: req.user._id,
       action: 'Scan execution',

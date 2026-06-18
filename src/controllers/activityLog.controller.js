@@ -2,9 +2,19 @@ const AuditLog = require('../models/AuditLog');
 
 const getLogs = async (req, res, next) => {
   try {
-    const { page = 1, limit = 20, query = '', type = 'All', status = 'All' } = req.query;
+    const { page = 1, limit = 20, query = '', type = 'All', status = 'All', startDate, endDate } = req.query;
 
     const dbQuery = { workspaceId: req.workspaceId };
+
+    if (startDate || endDate) {
+      dbQuery.createdAt = {};
+      if (startDate) {
+        dbQuery.createdAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        dbQuery.createdAt.$lte = new Date(endDate);
+      }
+    }
 
     if (query) {
       dbQuery.$or = [

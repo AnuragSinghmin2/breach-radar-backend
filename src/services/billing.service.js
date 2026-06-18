@@ -7,8 +7,8 @@ const Domain = require('../models/Domain');
 const Scan = require('../models/Scan');
 const TeamMember = require('../models/TeamMember');
 const teamService = require('./team.service');
-const paymentService = require('./payment.service');
 const invoicePdfService = require('./invoicePdf.service');
+const auditService = require('./audit.service');
 
 const PLAN_ORDER = ['Starter', 'Professional', 'Business', 'Enterprise'];
 
@@ -96,6 +96,13 @@ async function ensureSubscription(user, organization) {
       nextBillingDate: addMonths(new Date(), 1),
       paymentStatus: 'free',
       status: 'active',
+    });
+
+    await auditService.logAudit({
+      userId: organization.ownerId || user._id,
+      action: 'Plan Created',
+      description: `Starter plan subscription created automatically.`,
+      status: 'Success'
     });
   }
 
@@ -217,7 +224,7 @@ async function validatePlanDowngrade(user, organization, subscription, targetPla
 /**
  * Handle subscription upgrades (requires gateway details).
  */
-async function upgradePlan(userId, { planName, billingCycle, provider }) {
+async function upgradePlan(userId, { planName, planId, billingCycle, provider }) {
   const { user, organization, actorMember } = await teamService.getContext(userId);
   if (actorMember.role !== 'OWNER') {
     const error = new Error('Only the organization owner can upgrade the billing plan.');
@@ -225,9 +232,14 @@ async function upgradePlan(userId, { planName, billingCycle, provider }) {
     throw error;
   }
 
-  const normalizedPlanName = String(planName || '').trim();
+  const targetPlan = planName || planId;
+  if (!targetPlan) {
+    const error = new Error('planName or planId is required.');
+    error.statusCode = 400;
+    throw error;
+  }
+
   const normalizedBillingCycle = String(billingCycle || 'monthly').trim();
-  const normalizedProvider = String(provider || 'stripe').trim();
 
   if (!['monthly', 'yearly'].includes(normalizedBillingCycle)) {
     const error = new Error('Billing cycle must be monthly or yearly.');
@@ -235,7 +247,13 @@ async function upgradePlan(userId, { planName, billingCycle, provider }) {
     throw error;
   }
 
-  const plan = await SubscriptionPlan.findOne({ name: normalizedPlanName, isActive: true });
+  let plan;
+  if (mongoose.Types.ObjectId.isValid(targetPlan)) {
+    plan = await SubscriptionPlan.findById(targetPlan);
+  } else {
+    plan = await SubscriptionPlan.findOne({ name: targetPlan, isActive: true });
+  }
+
   if (!plan) {
     const error = new Error('Selected plan is not available.');
     error.statusCode = 404;
@@ -245,25 +263,57 @@ async function upgradePlan(userId, { planName, billingCycle, provider }) {
   const subscription = await ensureSubscription(user, organization);
   const amount = (plan.price || 0) * cycleMultiplier(normalizedBillingCycle);
 
-  // If price is 0 (free tier plan upgrade, e.g. switching back from Professional to Starter, though that is usually a downgrade check)
+  // If price is 0 (free tier plan upgrade, e.g. switching back from Professional to Starter)
   if (amount === 0) {
     return changePlanImmediate(user, organization, subscription, plan, normalizedBillingCycle, 'free', 'free_upgrade_txn');
   }
 
-  // Initiate gateway transaction
-  const paymentDetails = await paymentService.initiatePayment({
+  // Initiate Razorpay order creation
+  const Razorpay = require('razorpay');
+  const razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_placeholder',
+    key_secret: process.env.RAZORPAY_KEY_SECRET || 'rzp_secret_placeholder'
+  });
+
+  const amountInPaise = Math.round(amount * 100);
+
+  const rzpOrder = await razorpay.orders.create({
+    amount: amountInPaise,
+    currency: plan.currency || 'INR',
+    receipt: `rcpt_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+    notes: {
+      userId: user._id.toString(),
+      organizationId: organization._id.toString(),
+      planName: plan.name,
+      billingCycle: normalizedBillingCycle
+    }
+  });
+
+  // Save pending transaction in our database
+  const transactionId = `txn_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+  const transaction = await PaymentTransaction.create({
     userId: user._id,
     organizationId: organization._id,
-    planName: plan.name,
-    billingCycle: normalizedBillingCycle,
+    provider: 'razorpay',
+    providerOrderId: rzpOrder.id,
+    transactionId,
     amount,
-    provider: normalizedProvider
+    currency: plan.currency || 'INR',
+    status: 'pending',
+    metadata: {
+      planName: plan.name,
+      billingCycle: normalizedBillingCycle,
+      source: 'billing_upgrade'
+    }
   });
 
   return {
     message: `Payment initiated for ${plan.name} plan.`,
-    checkoutData: paymentDetails.checkoutData,
-    transaction: paymentDetails.transaction
+    orderId: rzpOrder.id,
+    amount: rzpOrder.amount,
+    currency: rzpOrder.currency,
+    key: process.env.RAZORPAY_KEY_ID,
+    transaction
   };
 }
 
@@ -315,6 +365,7 @@ async function downgradePlan(userId, { planName, billingCycle }) {
 async function changePlanImmediate(user, organization, subscription, plan, billingCycle, paymentStatus, transactionId) {
   const now = new Date();
   const amount = (plan.price || 0) * cycleMultiplier(billingCycle);
+  const oldPlan = subscription.currentPlan;
 
   subscription.currentPlan = plan.name;
   subscription.billingCycle = billingCycle;
@@ -344,6 +395,49 @@ async function changePlanImmediate(user, organization, subscription, plan, billi
     paymentStatus: amount > 0 ? 'paid' : 'pending',
     transactionId,
   });
+
+  // Log Invoice Generated Audit event
+  await auditService.logAudit({
+    userId: user._id,
+    action: 'Invoice Generated',
+    description: `Invoice ${invoice.invoiceNumber} generated for ${plan.name} plan.`,
+    status: 'Success'
+  });
+
+  // Compile PDF and save to persistent storage
+  const invoiceStorageService = require('./invoiceStorage.service');
+  try {
+    const pdfBuffer = await invoicePdfService.generateInvoicePdf(invoice, user, organization);
+    const { pdfUrl, storageProvider } = await invoiceStorageService.saveInvoicePdf(invoice.invoiceNumber, pdfBuffer);
+    invoice.pdfUrl = pdfUrl;
+    invoice.storageProvider = storageProvider;
+    await invoice.save();
+  } catch (pdfErr) {
+    logger.error(`[billing-service] Failed to pre-generate and store invoice PDF: ${pdfErr.message}`);
+  }
+
+  // Send Invoice Email via Resend
+  const { sendInvoiceEmail } = require('./email/resend.service');
+  const downloadLink = invoice.pdfUrl || `${process.env.BACKEND_URL || 'http://localhost:5000'}/uploads/invoices/${invoice.invoiceNumber}.pdf`;
+  
+  invoice.emailDeliveryAttempts += 1;
+  try {
+    await sendInvoiceEmail({
+      to: user.email,
+      invoiceNumber: invoice.invoiceNumber,
+      planName: plan.name,
+      amount,
+      date: invoice.generatedAt,
+      downloadLink
+    });
+    invoice.emailDeliveryStatus = 'sent';
+    invoice.emailDeliveryError = '';
+  } catch (emailErr) {
+    invoice.emailDeliveryStatus = 'failed';
+    invoice.emailDeliveryError = emailErr.message;
+    logger.error(`[billing-service] Failed to send invoice email to ${user.email}: ${emailErr.message}`);
+  }
+  await invoice.save();
 
   // Create or Update Payment Transaction
   let paymentTxn = await PaymentTransaction.findOne({ transactionId });
@@ -375,6 +469,60 @@ async function changePlanImmediate(user, organization, subscription, plan, billi
 
   await Promise.all([subscription.save(), organization.save(), user.save()]);
 
+  // Log audit of plan upgrade/downgrade
+  const oldIndex = PLAN_ORDER.indexOf(oldPlan);
+  const nextIndex = PLAN_ORDER.indexOf(plan.name);
+  let action = 'Plan Change';
+  if (nextIndex > oldIndex) {
+    action = 'Plan Upgrade';
+  } else if (nextIndex < oldIndex) {
+    action = 'Plan Downgrade';
+  }
+  
+  await auditService.logAudit({
+    userId: user._id,
+    action,
+    description: `Subscription plan changed from ${oldPlan} to ${plan.name} (${billingCycle}). Transaction ID: ${transactionId}.`,
+    status: 'Success'
+  });
+
+  // Create System Notifications in MongoDB
+  const Notification = require('../models/Notification');
+  try {
+    // 1. Plan Upgrade/Downgrade notification
+    if (nextIndex > oldIndex) {
+      await Notification.create({
+        organizationId: organization._id,
+        userId: user._id,
+        email: user.email,
+        type: 'PLAN_UPGRADED',
+        title: 'Plan Upgraded',
+        message: `Your subscription has been successfully upgraded to the ${plan.name} plan.`
+      });
+    } else if (nextIndex < oldIndex) {
+      await Notification.create({
+        organizationId: organization._id,
+        userId: user._id,
+        email: user.email,
+        type: 'PLAN_DOWNGRADED',
+        title: 'Plan Downgraded',
+        message: `Your subscription has been downgraded to the ${plan.name} plan.`
+      });
+    }
+
+    // 2. Invoice Generated notification
+    await Notification.create({
+      organizationId: organization._id,
+      userId: user._id,
+      email: user.email,
+      type: 'INVOICE_GENERATED',
+      title: 'Invoice Generated',
+      message: `A new invoice (${invoice.invoiceNumber}) has been generated for your ${plan.name} plan.`
+    });
+  } catch (notifErr) {
+    logger.error(`[billing-service] Failed to create system notifications: ${notifErr.message}`);
+  }
+
   return {
     message: `${plan.name} plan activated successfully.`,
     overview: await getOverview(user._id)
@@ -405,6 +553,13 @@ async function cancelSubscription(userId) {
   subscription.cancelledAt = new Date();
   await subscription.save();
 
+  await auditService.logAudit({
+    userId: user._id,
+    action: 'Subscription Cancelled',
+    description: `Subscription auto-renew turned off. Active until ${subscription.nextBillingDate || subscription.expiryDate}.`,
+    status: 'Success'
+  });
+
   return {
     message: 'Subscription cancellation scheduled.',
     overview: await getOverview(user._id),
@@ -424,10 +579,241 @@ async function getInvoicePdf(userId, invoiceId) {
     throw error;
   }
 
-  const pdfBuffer = await invoicePdfService.generateInvoicePdf(invoice, user, organization);
+  const invoiceStorageService = require('./invoiceStorage.service');
+  let pdfBuffer;
+  try {
+    // Retrieve historical invoice without regenerating PDF
+    pdfBuffer = await invoiceStorageService.getInvoicePdf(invoice.invoiceNumber);
+  } catch (err) {
+    // Regenerate on-the-fly and save if missing
+    pdfBuffer = await invoicePdfService.generateInvoicePdf(invoice, user, organization);
+    await invoiceStorageService.saveInvoicePdf(invoice.invoiceNumber, pdfBuffer);
+  }
+
   return {
     filename: `${invoice.invoiceNumber}.pdf`,
     buffer: pdfBuffer
+  };
+}
+
+/**
+ * Perform resource usage checks against configured thresholds and issue notifications.
+ */
+async function checkUsageAlerts(organizationId, userId) {
+  const Subscription = require('../models/Subscription');
+  const SubscriptionPlan = require('../models/SubscriptionPlan');
+  const Notification = require('../models/Notification');
+  const User = require('../models/User');
+  const Organization = require('../models/Organization');
+  const logger = require('../config/logger');
+
+  try {
+    const sub = await Subscription.findOne({ organizationId });
+    if (!sub) return;
+
+    const org = await Organization.findById(organizationId);
+    if (!org) return;
+
+    const plan = await SubscriptionPlan.findOne({ name: sub.currentPlan });
+    if (!plan) return;
+
+    const user = await User.findById(userId || sub.userId);
+    if (!user) return;
+
+    // Get current usage metrics
+    const metrics = await getUsageMetrics(user, org, sub, plan);
+    
+    // Ensure sub.usageAlerts exists
+    if (!sub.usageAlerts) {
+      sub.usageAlerts = {
+        domainsThreshold: 90,
+        scansThreshold: 90,
+        seatsThreshold: 90,
+        lastAlertSent: { domains: 0, scans: 0, seats: 0 }
+      };
+    }
+
+    const thresholds = [50, 75, 90, 100];
+    
+    for (const metric of metrics) {
+      const used = metric.used;
+      const limit = metric.rawLimit;
+      if (!limit || limit >= 999999) continue; // Skip unlimited
+
+      const pct = (used / limit) * 100;
+      
+      // Determine configured threshold
+      const configuredThreshold = 
+        metric.key === 'domains' ? sub.usageAlerts.domainsThreshold :
+        metric.key === 'scans' ? sub.usageAlerts.scansThreshold :
+        sub.usageAlerts.seatsThreshold;
+
+      // Find the highest threshold that is hit and <= pct
+      let hitThreshold = 0;
+      for (const t of thresholds) {
+        if (pct >= t) {
+          hitThreshold = t;
+        }
+      }
+
+      // Check if we need to send alert
+      const lastSent = sub.usageAlerts.lastAlertSent?.[metric.key] || 0;
+      
+      if (hitThreshold >= configuredThreshold && hitThreshold > lastSent) {
+        // Generate notification
+        await Notification.create({
+          organizationId,
+          userId: user._id,
+          email: user.email,
+          type: 'USAGE_ALERT',
+          title: `Usage Alert: ${metric.label}`,
+          message: `Your ${metric.label.toLowerCase()} usage is at ${Math.round(pct)}% (${used}/${limit}).`
+        });
+
+        logger.info(`[usage-alerts] Sent alert for ${metric.key} at ${hitThreshold}% for Org ${organizationId}`);
+        
+        // Update lastAlertSent
+        if (!sub.usageAlerts.lastAlertSent) {
+          sub.usageAlerts.lastAlertSent = { domains: 0, scans: 0, seats: 0 };
+        }
+        sub.usageAlerts.lastAlertSent[metric.key] = hitThreshold;
+        sub.markModified('usageAlerts');
+        await sub.save();
+      } else if (pct < configuredThreshold) {
+        // Reset alert state if it dropped below threshold
+        if (sub.usageAlerts.lastAlertSent?.[metric.key] !== 0) {
+          if (!sub.usageAlerts.lastAlertSent) {
+            sub.usageAlerts.lastAlertSent = { domains: 0, scans: 0, seats: 0 };
+          }
+          sub.usageAlerts.lastAlertSent[metric.key] = 0;
+          sub.markModified('usageAlerts');
+          await sub.save();
+        }
+      }
+    }
+  } catch (error) {
+    logger.error(`[usage-alerts] Error running check: ${error.message}`);
+  }
+}
+
+/**
+ * Update usage alert configuration thresholds.
+ */
+async function updateUsageAlertSettings(userId, { domainsThreshold, scansThreshold, seatsThreshold }) {
+  const { organization } = await teamService.getContext(userId);
+  const subscription = await Subscription.findOne({ organizationId: organization._id });
+  if (!subscription) {
+    const error = new Error('Subscription not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (!subscription.usageAlerts) {
+    subscription.usageAlerts = {
+      domainsThreshold: 90,
+      scansThreshold: 90,
+      seatsThreshold: 90,
+      lastAlertSent: { domains: 0, scans: 0, seats: 0 }
+    };
+  }
+
+  const validThresholds = [50, 75, 90, 100];
+  const validate = (t) => t === undefined || validThresholds.includes(Number(t));
+
+  if (!validate(domainsThreshold) || !validate(scansThreshold) || !validate(seatsThreshold)) {
+    const error = new Error('Invalid threshold value. Must be 50, 75, 90, or 100.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (domainsThreshold !== undefined) subscription.usageAlerts.domainsThreshold = Number(domainsThreshold);
+  if (scansThreshold !== undefined) subscription.usageAlerts.scansThreshold = Number(scansThreshold);
+  if (seatsThreshold !== undefined) subscription.usageAlerts.seatsThreshold = Number(seatsThreshold);
+
+  subscription.markModified('usageAlerts');
+  await subscription.save();
+
+  return {
+    message: 'Usage alert settings updated successfully.',
+    usageAlerts: subscription.usageAlerts
+  };
+}
+
+/**
+ * Get billing audit timeline events.
+ */
+async function getTimeline(userId) {
+  const { organization } = await teamService.getContext(userId);
+  const AuditLog = require('../models/AuditLog');
+  
+  const billingActions = [
+    'Plan Created',
+    'Payment Success',
+    'Payment Failure',
+    'Plan Upgrade',
+    'Plan Downgrade',
+    'Subscription Cancelled',
+    'Subscription Expired',
+    'Invoice Generated'
+  ];
+  
+  const TeamMember = require('../models/TeamMember');
+  const orgMembers = await TeamMember.find({ organizationId: organization._id }).select('userId');
+  const userIds = orgMembers.map(m => m.userId).filter(id => id != null);
+
+  const logs = await AuditLog.find({
+    userId: { $in: userIds },
+    action: { $in: billingActions }
+  }).sort({ createdAt: -1 });
+
+  return logs.map(log => ({
+    id: log._id,
+    action: log.action,
+    description: log.description,
+    timestamp: log.createdAt,
+    status: log.status
+  }));
+}
+
+/**
+ * Get SaaS-wide billing and worker health audit metrics for Super Admins.
+ */
+async function getBillingHealth() {
+  const Subscription = require('../models/Subscription');
+  const Invoice = require('../models/Invoice');
+  const { getEmailStatus } = require('./email/resend.service');
+  const fs = require('fs');
+  const path = require('path');
+
+  const invoicesCount = await Invoice.countDocuments();
+  const dirPath = path.join(process.cwd(), 'uploads', 'invoices');
+  const storageHealthy = fs.existsSync(dirPath);
+
+  const [activeSubs, cancelledSubs, suspendedSubs] = await Promise.all([
+    Subscription.countDocuments({ status: 'active' }),
+    Subscription.countDocuments({ status: 'cancelled' }),
+    Subscription.countDocuments({ status: 'suspended' })
+  ]);
+
+  const emailStatus = getEmailStatus();
+
+  return {
+    webhookStatus: process.env.RAZORPAY_WEBHOOK_SECRET ? 'configured' : 'missing_secret',
+    workerStatus: {
+      status: 'active',
+      schedule: process.env.SUBSCRIPTION_EXPIRY_CRON || '0 0 * * *'
+    },
+    invoiceStatus: {
+      count: invoicesCount,
+      storageHealthy,
+      storageProvider: process.env.STORAGE_PROVIDER || 'local'
+    },
+    subscriptionStatus: {
+      active: activeSubs,
+      cancelled: cancelledSubs,
+      suspended: suspendedSubs
+    },
+    emailStatus
   };
 }
 
@@ -439,5 +825,9 @@ module.exports = {
   downgradePlan,
   cancelSubscription,
   getInvoicePdf,
-  changePlanImmediate
+  changePlanImmediate,
+  checkUsageAlerts,
+  updateUsageAlertSettings,
+  getTimeline,
+  getBillingHealth
 };

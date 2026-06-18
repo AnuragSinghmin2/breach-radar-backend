@@ -29,19 +29,8 @@ const ROLE_PERMISSIONS = [
   { feature: 'Audit Logs', OWNER: true, ADMIN: true, ANALYST: false, VIEWER: false, AUDITOR: true },
 ];
 
-const PLAN_SEATS = {
-  Starter: 5,
-  Professional: 5,
-  Business: 25,
-  Enterprise: null,
-};
-
 function normalizeRole(role) {
   return String(role || '').trim().toUpperCase();
-}
-
-function seatLimitForPlan(plan) {
-  return Object.prototype.hasOwnProperty.call(PLAN_SEATS, plan) ? PLAN_SEATS[plan] : PLAN_SEATS.Starter;
 }
 
 function toObjectId(value, label = 'id') {
@@ -198,11 +187,15 @@ async function ensureOrganizationForUser(user) {
       return member.organizationId;
     }
 
+    const SubscriptionPlan = require('../models/SubscriptionPlan');
+    const starterPlan = await SubscriptionPlan.findOne({ name: 'Starter' });
+    const starterSeatLimit = starterPlan ? starterPlan.seatLimit : 1;
+
     organization = await Organization.create({
       name: `${user.profile?.name || user.email}'s Organization`,
       ownerId: user._id,
       subscriptionPlan: 'Starter',
-      maxSeats: seatLimitForPlan('Starter'),
+      maxSeats: starterSeatLimit,
       timezone: user.preferences?.timezone || 'UTC',
     });
   }
@@ -302,8 +295,11 @@ async function expirePendingInvitations(organizationId = null) {
 }
 
 async function assertSeatAvailable(organization) {
-  const limit = seatLimitForPlan(organization.subscriptionPlan);
-  if (limit === null) return;
+  const SubscriptionPlan = require('../models/SubscriptionPlan');
+  const plan = await SubscriptionPlan.findOne({ name: organization.subscriptionPlan });
+  const limit = plan ? plan.seatLimit : 1;
+
+  if (limit >= 999999) return;
 
   const used = await countSeats(organization._id);
   if (used >= limit) {
@@ -360,7 +356,12 @@ async function getDashboard(userId, query = {}) {
       pending,
       admins,
       seatsUsed: await countSeats(organization._id),
-      maxSeats: organization.maxSeats,
+      maxSeats: await (async () => {
+        const SubscriptionPlan = require('../models/SubscriptionPlan');
+        const plan = await SubscriptionPlan.findOne({ name: organization.subscriptionPlan });
+        const limit = plan ? plan.seatLimit : organization.maxSeats;
+        return limit >= 999999 ? 'Unlimited' : limit;
+      })(),
     },
     members: pagedRows,
     pagination: {
@@ -476,6 +477,9 @@ async function inviteMember(userId, payload) {
       message: `You were invited to join ${organization.name} as ${role}.`,
     }),
   ]);
+
+  const billingService = require('./billing.service');
+  billingService.checkUsageAlerts(organization._id, userId).catch(err => logger.error(`[alert-check-err] ${err.message}`));
 
   const message = emailDelivery.success
     ? `Invitation sent to ${email}.`
@@ -594,6 +598,9 @@ async function acceptInvitation(userId, token, req = null) {
 
   user.preferences.activeOrganizationId = invitation.organizationId._id;
   await user.save();
+
+  const billingService = require('./billing.service');
+  billingService.checkUsageAlerts(invitation.organizationId._id, user._id).catch(err => logger.error(`[alert-check-err] ${err.message}`));
 
   await Promise.all([
     logTeamActivity({
@@ -975,7 +982,6 @@ async function recordWorkspaceActivity({ userId, action, target = '', metadata =
 module.exports = {
   ROLES,
   ROLE_PERMISSIONS,
-  PLAN_SEATS,
   ensureOrganizationForUser,
   getContext,
   getDashboard,

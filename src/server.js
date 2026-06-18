@@ -11,6 +11,7 @@ const { startAlertWorker } = require('./workers/alert.worker');
 const { startMonitoringWorker } = require('./workers/monitoring.worker');
 const { startSslWorker } = require('./workers/ssl.worker');
 const { startDomainExpiryWorker } = require('./workers/domainExpiry.worker');
+const { startSubscriptionExpiryWorker } = require('./workers/subscriptionExpiry.worker');
 const { startMonitoringScheduler } = require('./schedulers/monitoring.scheduler');
 const logger = require('./config/logger');
 
@@ -46,6 +47,7 @@ const startServer = async () => {
     }
 
     startMonitoringScheduler();
+    startSubscriptionExpiryWorker();
 
     // 4. Start HTTP Server Listener
     server.listen(PORT, () => {

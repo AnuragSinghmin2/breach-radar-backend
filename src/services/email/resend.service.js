@@ -209,10 +209,56 @@ async function verifySenderDomainStatus() {
   };
 }
 
+async function sendInvoiceEmail({ to, invoiceNumber, planName, amount, date, downloadLink }) {
+  const formattedAmount = new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0
+  }).format(amount);
+
+  const html = `
+    <div style="margin:0;background:#07111f;padding:32px;font-family:Inter,Segoe UI,Arial,sans-serif;color:#f8fafc">
+      <div style="max-width:620px;margin:0 auto;background:#0b1728;border:1px solid #20324a;border-radius:12px;padding:28px">
+        <h1 style="margin:0 0 12px;font-size:24px;color:#ffffff">Your Breach Radar Invoice</h1>
+        <p style="margin:0 0 22px;color:#aeb8c7;line-height:1.6">Thank you for your payment! Here are your subscription purchase details.</p>
+        <div style="background:#091421;border:1px solid #20324a;border-radius:10px;padding:18px;margin-bottom:22px">
+          <p style="margin:0 0 8px;color:#aeb8c7">Invoice Number</p>
+          <strong style="display:block;margin-bottom:16px;font-size:18px;color:#ffffff">${invoiceNumber}</strong>
+          <p style="margin:0 0 8px;color:#aeb8c7">Plan Name</p>
+          <strong style="display:block;margin-bottom:16px;color:#16e095">${planName} Plan</strong>
+          <p style="margin:0 0 8px;color:#aeb8c7">Amount Paid</p>
+          <strong style="display:block;margin-bottom:16px;color:#ffffff">${formattedAmount}</strong>
+          <p style="margin:0 0 8px;color:#aeb8c7">Date</p>
+          <strong style="display:block;color:#ffffff">${new Date(date).toLocaleDateString()}</strong>
+        </div>
+        <a href="${downloadLink}" style="display:inline-block;background:#16e095;color:#04120d;text-decoration:none;font-weight:800;padding:13px 18px;border-radius:8px">Download PDF Invoice</a>
+        <p style="margin:24px 0 0;color:#aeb8c7;font-size:13px;line-height:1.6">If the button does not work, copy and paste this link into your browser:<br>${downloadLink}</p>
+      </div>
+    </div>
+  `;
+
+  const text = `
+    Your Breach Radar Invoice
+    Invoice Number: ${invoiceNumber}
+    Plan Name: ${planName} Plan
+    Amount Paid: ${formattedAmount}
+    Date: ${new Date(date).toLocaleDateString()}
+    Download PDF Invoice: ${downloadLink}
+  `;
+
+  return sendEmail({
+    to,
+    subject: `Breach Radar Invoice - ${invoiceNumber}`,
+    html,
+    text
+  });
+}
+
 module.exports = {
   sendInvitationEmail,
   buildInvitationEmail,
   buildInvitationLink,
   getEmailStatus,
   verifySenderDomainStatus,
+  sendInvoiceEmail,
 };

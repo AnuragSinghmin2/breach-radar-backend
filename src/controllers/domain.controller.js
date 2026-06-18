@@ -233,6 +233,13 @@ const addDomain = async (req, res, next) => {
 
     await newDomain.save();
     logger.info(`Domain added: ${formattedDomain} in Workspace ${workspaceId} by user ${req.user.email}`);
+    
+    const billingService = require('../services/billing.service');
+    billingService.checkUsageAlerts(org._id, req.user._id).catch(err => logger.error(`[alert-check-err] ${err.message}`));
+
+    const { logRequestAudit } = require('../services/audit.service');
+    await logRequestAudit(req, 'Domain Added', `Domain ${formattedDomain} added to workspace.`);
+
     await teamService.recordWorkspaceActivity({
       userId: req.user._id,
       action: 'Domain addition',
@@ -341,6 +348,9 @@ const deleteDomain = async (req, res, next) => {
 
     const deletedScans = await Scan.deleteMany({ domainId: id, workspaceId });
     const deletedVulns = await Vulnerability.deleteMany({ domainId: id, workspaceId });
+
+    const { logRequestAudit } = require('../services/audit.service');
+    await logRequestAudit(req, 'Domain Deleted', `Domain ${domainName} deleted.`);
 
     logger.info(
       `Domain deleted: ${domainName} (ID: ${id}) from Workspace ${workspaceId}. Cascade deleted: ${deletedScans.deletedCount} scans, ${deletedVulns.deletedCount} vulnerabilities.`

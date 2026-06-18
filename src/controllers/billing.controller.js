@@ -1,5 +1,4 @@
 const billingService = require('../services/billing.service');
-const paymentService = require('../services/payment.service');
 const SubscriptionPlan = require('../models/SubscriptionPlan');
 const User = require('../models/User');
 const Organization = require('../models/Organization');
@@ -90,6 +89,33 @@ const cancelSubscription = async (req, res, next) => {
   }
 };
 
+const getTimeline = async (req, res, next) => {
+  try {
+    const data = await billingService.getTimeline(req.user._id);
+    res.status(200).json(data);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateUsageAlertSettings = async (req, res, next) => {
+  try {
+    const result = await billingService.updateUsageAlertSettings(req.user._id, req.body);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getBillingHealth = async (req, res, next) => {
+  try {
+    const data = await billingService.getBillingHealth();
+    res.status(200).json(data);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getBillingOverview,
   getCurrentPlan,
@@ -98,5 +124,8 @@ module.exports = {
   getInvoicePdf,
   upgradePlan,
   downgradePlan,
-  cancelSubscription
+  cancelSubscription,
+  getTimeline,
+  updateUsageAlertSettings,
+  getBillingHealth
 };

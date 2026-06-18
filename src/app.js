@@ -24,7 +24,7 @@ const settingsRoutes = require('./routes/settings.routes');
 const securityRoutes = require('./routes/security.routes');
 const apiAccessRoutes = require('./routes/apiAccess.routes');
 const integrationRoutes = require('./routes/integration.routes');
-// const activityLogRoutes = require('./routes/activityLog.routes');
+const activityLogRoutes = require('./routes/activityLog.routes');
 
 
 const { generalLimiter } = require('./middleware/rateLimiter');
@@ -51,7 +51,11 @@ app.use(cookieParser());
 app.use('/api/', generalLimiter);
 
 // Payload Parsing
-app.use(express.json());
+app.use(express.json({
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads'), {
   setHeaders: (res) => {
@@ -85,7 +89,7 @@ app.use('/api/v1/settings', settingsRoutes);
 app.use('/api/v1/security', securityRoutes);
 app.use('/api/v1/api-access', apiAccessRoutes);
 app.use('/api/v1/integrations', integrationRoutes);
-// app.use('/api/v1/activity-log', activityLogRoutes);
+app.use('/api/v1/activity-log', activityLogRoutes);
 app.use('/api/team', teamRoutes);
 
 

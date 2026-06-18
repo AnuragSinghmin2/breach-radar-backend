@@ -82,6 +82,15 @@ async function markScanCompleted(scan, domain, findings, scannerMeta) {
   domain.scoreTone = scoreMeta.tone;
   await domain.save();
 
+  const { logAudit } = require('./audit.service');
+  await logAudit({
+    workspaceId: scan.workspaceId,
+    userId: scan.userId,
+    action: 'Scan Completed',
+    description: `Scan completed for domain ${domain.domain}. Found ${findings.length} vulnerabilities.`,
+    status: 'Success'
+  });
+
   try {
     const alertService = require('./alert.service');
     await alertService.handleScanCompletedAlerts(scan, domain, counts);
@@ -103,6 +112,15 @@ async function markScanFailed(scan, errorMessage) {
     domain.statusDetail = `Scan failed: ${errorMessage}`;
     await domain.save();
   }
+
+  const { logAudit } = require('./audit.service');
+  await logAudit({
+    workspaceId: scan.workspaceId,
+    userId: scan.userId,
+    action: 'Scan Failed',
+    description: `Scan failed for domain ${domain ? domain.domain : 'unknown'}. Error: ${errorMessage}`,
+    status: 'Failure'
+  });
 }
 
 /**

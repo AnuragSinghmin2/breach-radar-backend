@@ -67,6 +67,28 @@ const SubscriptionSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  usageAlerts: {
+    domainsThreshold: {
+      type: Number,
+      enum: [50, 75, 90, 100],
+      default: 90,
+    },
+    scansThreshold: {
+      type: Number,
+      enum: [50, 75, 90, 100],
+      default: 90,
+    },
+    seatsThreshold: {
+      type: Number,
+      enum: [50, 75, 90, 100],
+      default: 90,
+    },
+    lastAlertSent: {
+      domains: { type: Number, default: 0 },
+      scans: { type: Number, default: 0 },
+      seats: { type: Number, default: 0 },
+    },
+  },
 }, {
   timestamps: true,
 });

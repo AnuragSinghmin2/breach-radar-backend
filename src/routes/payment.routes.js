@@ -10,6 +10,7 @@ const SubscriptionPlan = require('../models/SubscriptionPlan');
 const Subscription = require('../models/Subscription');
 const PaymentTransaction = require('../models/PaymentTransaction');
 const billingService = require('../services/billing.service');
+const logger = require('../config/logger');
 
 // Initialize Razorpay SDK client
 const razorpay = new Razorpay({
@@ -103,9 +104,9 @@ router.post('/create-order', authenticateJWT, requireTeamRole(['OWNER']), async 
  * Validate dynamic signature submitted by checkout modal and activate subscription plan.
  */
 router.post('/verify', authenticateJWT, requireTeamRole(['OWNER']), async (req, res, next) => {
+  const auditService = require('../services/audit.service');
+  const { razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
   try {
-    const { razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
-
     if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
       return res.status(400).json({ message: 'Missing Razorpay signature verification details.' });
     }
@@ -116,6 +117,25 @@ router.post('/verify', authenticateJWT, requireTeamRole(['OWNER']), async (req, 
     const generatedSignature = hmac.digest('hex');
 
     if (generatedSignature !== razorpay_signature) {
+      await auditService.logRequestAudit(
+        req,
+        'Payment Failure',
+        `Signature verification failed for order ${razorpay_order_id}.`,
+        'Failure'
+      );
+      try {
+        const Notification = require('../models/Notification');
+        await Notification.create({
+          organizationId: req.organization._id,
+          userId: req.user._id,
+          email: req.user.email,
+          type: 'PAYMENT_FAILURE',
+          title: 'Payment Failed',
+          message: `Signature verification failed for order ${razorpay_order_id}.`
+        });
+      } catch (notifErr) {
+        logger.error(`[payment-routes] Failed to create payment failure notification: ${notifErr.message}`);
+      }
       return res.status(400).json({ message: 'Invalid payment signature verification failed.' });
     }
 
@@ -160,11 +180,230 @@ router.post('/verify', authenticateJWT, requireTeamRole(['OWNER']), async (req, 
       transaction.transactionId
     );
 
+    // Audit Log for Payment Success
+    await auditService.logRequestAudit(
+      req,
+      'Payment Success',
+      `Payment succeeded for plan ${plan.name} (${billingCycle}). Order ID: ${razorpay_order_id}. Payment ID: ${razorpay_payment_id}.`
+    );
+
+    try {
+      const Notification = require('../models/Notification');
+      await Notification.create({
+        organizationId: req.organization._id,
+        userId: req.user._id,
+        email: req.user.email,
+        type: 'PAYMENT_SUCCESS',
+        title: 'Payment Successful',
+        message: `Your payment was verified successfully for the ${plan.name} plan.`
+      });
+    } catch (notifErr) {
+      logger.error(`[payment-routes] Failed to create payment success notification: ${notifErr.message}`);
+    }
+
     res.status(200).json({
       message: 'Plan upgraded successfully.',
       planName: plan.name
     });
   } catch (error) {
+    // Log payment error audit
+    await auditService.logRequestAudit(
+      req,
+      'Payment Failure',
+      `Payment processing failed: ${error.message}`,
+      'Failure'
+    );
+    try {
+      const Notification = require('../models/Notification');
+      await Notification.create({
+        organizationId: req.organization._id,
+        userId: req.user._id,
+        email: req.user.email,
+        type: 'PAYMENT_FAILURE',
+        title: 'Payment Failed',
+        message: `Payment processing failed: ${error.message}`
+      });
+    } catch (notifErr) {
+      logger.error(`[payment-routes] Failed to create payment failure notification: ${notifErr.message}`);
+    }
+    next(error);
+  }
+});
+
+/**
+ * POST /api/payment/webhook
+ * Razorpay Webhook receiver for async notification events.
+ */
+router.post('/webhook', async (req, res, next) => {
+  const logger = require('../config/logger');
+  try {
+    const signature = req.headers['x-razorpay-signature'];
+    if (!signature) {
+      return res.status(400).json({ message: 'Missing Razorpay webhook signature.' });
+    }
+
+    const secret = process.env.RAZORPAY_WEBHOOK_SECRET || 'webhook_secret_placeholder';
+    
+    // Validate signature using rawBody
+    const hmac = crypto.createHmac('sha256', secret);
+    hmac.update(req.rawBody || JSON.stringify(req.body));
+    const generatedSignature = hmac.digest('hex');
+
+    if (generatedSignature !== signature) {
+      logger.warn('[webhook] Webhook signature verification failed.');
+      return res.status(400).json({ message: 'Invalid webhook signature.' });
+    }
+
+    const event = req.body.event;
+    const payload = req.body.payload;
+
+    logger.info(`Received Razorpay webhook event: ${event}`);
+
+    let providerOrderId = '';
+    let providerPaymentId = '';
+    let isSuccess = false;
+    let isFailure = false;
+    let failureReason = '';
+
+    if (event === 'order.paid' && payload.order) {
+      providerOrderId = payload.order.entity.id;
+      isSuccess = true;
+    } else if (event === 'payment.captured' && payload.payment) {
+      providerOrderId = payload.payment.entity.order_id;
+      providerPaymentId = payload.payment.entity.id;
+      isSuccess = true;
+    } else if (event === 'payment.failed' && payload.payment) {
+      providerOrderId = payload.payment.entity.order_id;
+      providerPaymentId = payload.payment.entity.id;
+      isFailure = true;
+      failureReason = payload.payment.entity.error_description || 'Payment failed';
+    }
+
+    if (!providerOrderId) {
+      return res.status(200).json({ status: 'ok', message: 'Event ignored: no order ID.' });
+    }
+
+    // Find pending transaction
+    const transaction = await PaymentTransaction.findOne({ providerOrderId });
+    if (!transaction) {
+      logger.warn(`[webhook] Transaction not found for order: ${providerOrderId}`);
+      return res.status(200).json({ status: 'ok', message: 'Transaction not found.' });
+    }
+
+    // Prevent duplicate processing
+    if (transaction.status === 'succeeded') {
+      logger.info(`[webhook] Transaction ${transaction.transactionId} already marked as succeeded. Preventing duplicate processing.`);
+      return res.status(200).json({ status: 'ok', message: 'Payment already processed.' });
+    }
+
+    const auditService = require('../services/audit.service');
+
+    if (isSuccess) {
+      transaction.status = 'succeeded';
+      if (providerPaymentId) {
+        transaction.providerPaymentId = providerPaymentId;
+      }
+      await transaction.save();
+
+      const planName = transaction.metadata?.planName || 'Professional';
+      const billingCycle = transaction.metadata?.billingCycle || 'monthly';
+
+      const plan = await SubscriptionPlan.findOne({ name: planName, isActive: true });
+      if (!plan) {
+        logger.error(`[webhook] Plan "${planName}" not found for transaction: ${transaction.transactionId}`);
+        return res.status(404).json({ message: `Plan ${planName} not found` });
+      }
+
+      const User = require('../models/User');
+      const Organization = require('../models/Organization');
+      const Subscription = require('../models/Subscription');
+
+      const user = await User.findById(transaction.userId);
+      const organization = await Organization.findById(transaction.organizationId);
+      if (!user || !organization) {
+        logger.error(`[webhook] User/Org not found for transaction: ${transaction.transactionId}`);
+        return res.status(404).json({ message: 'User or Org not found' });
+      }
+
+      const subscription = await Subscription.findOne({ organizationId: organization._id });
+      if (!subscription) {
+        logger.error(`[webhook] Subscription reference not found for Org: ${organization._id}`);
+        return res.status(404).json({ message: 'Subscription reference not found' });
+      }
+
+      // Activate subscription & generate invoice in immediate activation logic
+      await billingService.changePlanImmediate(
+        user,
+        organization,
+        subscription,
+        plan,
+        billingCycle,
+        'paid',
+        transaction.transactionId
+      );
+
+      // Audit Log for Payment Success
+      await auditService.logAudit({
+        userId: user._id,
+        action: 'Payment Success',
+        description: `Razorpay payment captured via webhook. Order ID: ${providerOrderId}. Transaction ID: ${transaction.transactionId}.`,
+        status: 'Success'
+      });
+
+      try {
+        const Notification = require('../models/Notification');
+        await Notification.create({
+          organizationId: organization._id,
+          userId: user._id,
+          email: user.email,
+          type: 'PAYMENT_SUCCESS',
+          title: 'Payment Successful',
+          message: `Your payment was captured successfully for the ${plan.name} plan via webhook.`
+        });
+      } catch (notifErr) {
+        logger.error(`[webhook] Failed to create payment success notification: ${notifErr.message}`);
+      }
+
+      logger.info(`[webhook] Successfully processed payment and activated plan for organization: ${organization.name}`);
+
+    } else if (isFailure) {
+      transaction.status = 'failed';
+      await transaction.save();
+
+      // Audit Log for Payment Failure
+      await auditService.logAudit({
+        userId: transaction.userId,
+        action: 'Payment Failure',
+        description: `Razorpay payment failed via webhook. Order ID: ${providerOrderId}. Reason: ${failureReason}.`,
+        status: 'Failure'
+      });
+
+      try {
+        const User = require('../models/User');
+        const Notification = require('../models/Notification');
+        let userEmail = '';
+        if (transaction.userId) {
+          const u = await User.findById(transaction.userId);
+          if (u) userEmail = u.email;
+        }
+        await Notification.create({
+          organizationId: transaction.organizationId,
+          userId: transaction.userId,
+          email: userEmail,
+          type: 'PAYMENT_FAILURE',
+          title: 'Payment Failed',
+          message: `Razorpay payment failed via webhook. Reason: ${failureReason}.`
+        });
+      } catch (notifErr) {
+        logger.error(`[webhook] Failed to create payment failure notification: ${notifErr.message}`);
+      }
+
+      logger.info(`[webhook] Razorpay payment failed for order: ${providerOrderId}`);
+    }
+
+    res.status(200).json({ status: 'ok' });
+  } catch (error) {
+    logger.error(`[webhook] Webhook execution error: ${error.message}`);
     next(error);
   }
 });

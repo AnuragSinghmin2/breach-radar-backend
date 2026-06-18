@@ -12,6 +12,8 @@ const getProfile = async (req, res, next) => {
 const updateProfile = async (req, res, next) => {
   try {
     const user = await userService.updateCurrentUserProfile(req.user._id, req.body);
+    const { logRequestAudit } = require('../services/audit.service');
+    await logRequestAudit(req, 'Profile Update', 'User updated their profile details.');
     res.status(200).json({
       message: 'Profile updated successfully.',
       user,
@@ -24,6 +26,8 @@ const updateProfile = async (req, res, next) => {
 const uploadAvatar = async (req, res, next) => {
   try {
     const user = await userService.updateCurrentUserAvatar(req.user._id, req.file);
+    const { logRequestAudit } = require('../services/audit.service');
+    await logRequestAudit(req, 'Profile Update', 'User updated their profile picture.');
     res.status(200).json({
       message: 'Profile picture updated successfully.',
       user,
@@ -36,6 +40,8 @@ const uploadAvatar = async (req, res, next) => {
 const removeAvatar = async (req, res, next) => {
   try {
     const user = await userService.removeCurrentUserAvatar(req.user._id);
+    const { logRequestAudit } = require('../services/audit.service');
+    await logRequestAudit(req, 'Profile Update', 'User removed their profile picture.');
     res.status(200).json({
       message: 'Profile picture removed successfully.',
       user,

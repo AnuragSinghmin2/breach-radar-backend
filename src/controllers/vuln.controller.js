@@ -93,6 +93,14 @@ const updateVulnerabilityStatus = async (req, res, next) => {
 
     await vulnerability.save();
     await vulnerability.populate('domainId', 'domain');
+
+    const { logRequestAudit } = require('../services/audit.service');
+    await logRequestAudit(
+      req,
+      'Vulnerability Status Changed',
+      `Vulnerability "${vulnerability.name}" status updated to ${status}.`
+    );
+
     await teamService.recordWorkspaceActivity({
       userId: req.user._id,
       action: 'Vulnerability status change',

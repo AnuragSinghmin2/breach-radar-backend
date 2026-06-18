@@ -1,10 +1,22 @@
 const AuditLog = require('../models/AuditLog');
 const logger = require('../config/logger');
 
-async function logTeamAudit({ req, userId, action, description, status = 'Success' }) {
+async function logTeamAudit({ req, userId, action, description, status = 'Success', workspaceId }) {
   try {
+    let finalWorkspaceId = workspaceId || req?.workspaceId || null;
+    const actorId = userId || req?.user?._id || null;
+    
+    if (!finalWorkspaceId && actorId) {
+      const User = require('../models/User');
+      const user = await User.findById(actorId);
+      if (user) {
+        finalWorkspaceId = user.preferences?.activeWorkspaceId;
+      }
+    }
+
     await AuditLog.create({
-      userId: userId || req?.user?._id || null,
+      workspaceId: finalWorkspaceId,
+      userId: actorId,
       action,
       description,
       status,
