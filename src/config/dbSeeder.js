@@ -35,7 +35,7 @@ const dbSeeder = async () => {
       {
         name: 'Professional',
         displayName: 'Professional',
-        price: 499,
+        price: 1,
         currency: 'INR',
         billingInterval: 'month',
         seatLimit: 5,
@@ -282,7 +282,7 @@ const dbSeeder = async () => {
           providerOrderId: 'order_12345_seeded',
           providerPaymentId: 'pay_12345_seeded',
           transactionId: 'txn_init_seeded_99a8b7',
-          amount: 499,
+          amount: 1,
           currency: 'INR',
           status: 'succeeded',
           createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000)
@@ -295,7 +295,7 @@ const dbSeeder = async () => {
           providerOrderId: 'order_12346_seeded',
           providerPaymentId: 'pay_12346_seeded',
           transactionId: 'txn_dup_seeded_11b2c3',
-          amount: 499,
+          amount: 1,
           currency: 'INR',
           status: 'refunded',
           createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000)
@@ -311,7 +311,7 @@ const dbSeeder = async () => {
           organizationId: testOrg._id,
           subscriptionId: testSub._id,
           planName: 'Professional',
-          amount: 499,
+          amount: 1,
           tax: 0,
           currency: 'INR',
           paymentStatus: 'paid',
@@ -324,7 +324,7 @@ const dbSeeder = async () => {
           organizationId: testOrg._id,
           subscriptionId: testSub._id,
           planName: 'Professional',
-          amount: 499,
+          amount: 1,
           tax: 0,
           currency: 'INR',
           paymentStatus: 'cancelled',
@@ -365,4 +365,3 @@ const dbSeeder = async () => {
 };
 
 module.exports = dbSeeder;
-

@@ -33,12 +33,35 @@ const logger = require('./config/logger');
 
 const app = express();
 
+const defaultCorsOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5174'
+];
+
+const corsOrigins = [
+  ...defaultCorsOrigins,
+  process.env.FRONTEND_URL,
+  process.env.CORS_ORIGIN
+]
+  .filter(Boolean)
+  .flatMap((origin) => origin.split(','))
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+  .filter((origin, index, origins) => origins.indexOf(origin) === index);
+
 // Security Headers
 app.use(helmet());
 
 // Cross Origin Resource Sharing
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin(origin, callback) {
+    if (!origin || corsOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    logger.warn(`[cors] Blocked request from origin: ${origin}. Allowed origins: ${corsOrigins.join(', ')}`);
+    return callback(new Error(`Origin ${origin} is not allowed by CORS`));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']

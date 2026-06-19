@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const crypto = require('crypto');
-const Razorpay = require('razorpay');
 
 const authenticateJWT = require('../middleware/auth');
 const { requireTeamRole } = require('../middleware/teamRbac');
@@ -11,12 +10,58 @@ const Subscription = require('../models/Subscription');
 const PaymentTransaction = require('../models/PaymentTransaction');
 const billingService = require('../services/billing.service');
 const logger = require('../config/logger');
+const {
+  getRazorpayClient,
+  getRazorpayCredentials,
+  getRazorpayKeyInfo,
+  logRazorpayError
+} = require('../config/razorpay');
 
-// Initialize Razorpay SDK client
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_placeholder',
-  key_secret: process.env.RAZORPAY_KEY_SECRET || 'rzp_secret_placeholder'
-});
+const RAZORPAY_ORDER_TIMEOUT_MS = Number(process.env.RAZORPAY_ORDER_TIMEOUT_MS || 15000);
+
+function withTimeout(promise, ms, message) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      const error = new Error(message);
+      error.statusCode = 504;
+      error.code = 'RAZORPAY_TIMEOUT';
+      reject(error);
+    }, ms);
+  });
+
+  return Promise.race([
+    promise.finally(() => clearTimeout(timeoutId)),
+    timeout
+  ]);
+}
+
+async function createRazorpayOrder(orderPayload) {
+  try {
+    const razorpay = getRazorpayClient();
+    logger.info(`[payment-routes] razorpay.orders.create request=${JSON.stringify(orderPayload)}`);
+    return await withTimeout(
+      razorpay.orders.create(orderPayload),
+      RAZORPAY_ORDER_TIMEOUT_MS,
+      'Razorpay order creation timed out. Please check internet access and Razorpay test key configuration.'
+    );
+  } catch (err) {
+    if (err.code === 'RAZORPAY_TIMEOUT') {
+      throw err;
+    }
+
+    logRazorpayError('[payment-routes] Razorpay order creation failed', err);
+    const error = new Error(err.error?.description || 'Razorpay order creation failed. Please verify Razorpay test keys and network access.');
+    error.statusCode = err.statusCode || 502;
+    error.code = 'RAZORPAY_ORDER_FAILED';
+    error.details = {
+      razorpayCode: err.error?.code,
+      razorpayField: err.error?.field,
+      razorpayReason: err.error?.reason
+    };
+    throw error;
+  }
+}
 
 /**
  * POST /api/payment/create-order
@@ -25,6 +70,7 @@ const razorpay = new Razorpay({
 router.post('/create-order', authenticateJWT, requireTeamRole(['OWNER']), async (req, res, next) => {
   try {
     const { planId, billingCycle = 'monthly' } = req.body;
+    logger.info(`[payment-routes] Order API called by user=${req.user?._id || 'unknown'} planId=${planId || 'missing'} billingCycle=${billingCycle}`);
     
     if (!planId) {
       return res.status(400).json({ message: 'planId is required.' });
@@ -52,13 +98,20 @@ router.post('/create-order', authenticateJWT, requireTeamRole(['OWNER']), async 
     
     // Razorpay amount is in paise (1 INR = 100 paise)
     const amountInPaise = Math.round(amountInINR * 100);
+    logger.info(`[payment-routes] Creating Razorpay order amountInINR=${amountInINR} amountInPaise=${amountInPaise} currency=${plan.currency || 'INR'}`);
 
     if (amountInPaise <= 0) {
       return res.status(400).json({ message: 'Cannot create order for zero-amount plans.' });
     }
 
+    const keyInfo = getRazorpayKeyInfo();
+    logger.info(`[payment-routes] Active Razorpay key keyPrefix=${keyInfo.keyPrefix} mode=${keyInfo.mode}`);
+    if (keyInfo.isLiveMode) {
+      logger.error('[payment-routes] Live Razorpay key is active during checkout. Use rzp_test_ credentials for test payments.');
+    }
+
     // Place order via Razorpay SDK
-    const rzpOrder = await razorpay.orders.create({
+    const orderPayload = {
       amount: amountInPaise,
       currency: plan.currency || 'INR',
       receipt: `rcpt_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
@@ -68,7 +121,15 @@ router.post('/create-order', authenticateJWT, requireTeamRole(['OWNER']), async 
         planName: plan.name,
         billingCycle
       }
-    });
+    };
+    const rzpOrder = await createRazorpayOrder(orderPayload);
+
+    if (!rzpOrder?.id) {
+      const error = new Error('Razorpay did not return an order id.');
+      error.statusCode = 502;
+      error.code = 'RAZORPAY_ORDER_ID_MISSING';
+      throw error;
+    }
 
     // Save pending transaction in our database
     const transactionId = `txn_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
@@ -88,13 +149,30 @@ router.post('/create-order', authenticateJWT, requireTeamRole(['OWNER']), async 
       }
     });
 
-    res.status(200).json({
+    logger.info(`[payment-routes] razorpay.orders.create response=${JSON.stringify({
+      id: rzpOrder.id,
+      entity: rzpOrder.entity,
+      amount: rzpOrder.amount,
+      amount_paid: rzpOrder.amount_paid,
+      amount_due: rzpOrder.amount_due,
+      currency: rzpOrder.currency,
+      receipt: rzpOrder.receipt,
+      status: rzpOrder.status,
+      attempts: rzpOrder.attempts,
+      created_at: rzpOrder.created_at
+    })}`);
+    logger.info(`[payment-routes] Order created orderId=${rzpOrder.id} amount=${rzpOrder.amount} currency=${rzpOrder.currency} keyPrefix=${keyInfo.keyPrefix} mode=${keyInfo.mode}`);
+
+    return res.status(200).json({
       orderId: rzpOrder.id,
       amount: rzpOrder.amount,
       currency: rzpOrder.currency,
-      key: process.env.RAZORPAY_KEY_ID
+      key: keyInfo.keyId,
+      keyMode: keyInfo.mode,
+      keyPrefix: keyInfo.keyPrefix
     });
   } catch (error) {
+    logger.error(`[payment-routes] Create order request failed: ${error.message}`);
     next(error);
   }
 });
@@ -107,12 +185,15 @@ router.post('/verify', authenticateJWT, requireTeamRole(['OWNER']), async (req, 
   const auditService = require('../services/audit.service');
   const { razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
   try {
+    logger.info(`[payment-routes] Verify payment request orderId=${razorpay_order_id || 'missing'} paymentId=${razorpay_payment_id || 'missing'} hasSignature=${Boolean(razorpay_signature)}`);
+
     if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
       return res.status(400).json({ message: 'Missing Razorpay signature verification details.' });
     }
 
     // Verify cryptographic HMAC SHA256 signature
-    const hmac = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || 'rzp_secret_placeholder');
+    const { keySecret } = getRazorpayCredentials();
+    const hmac = crypto.createHmac('sha256', keySecret);
     hmac.update(`${razorpay_order_id}|${razorpay_payment_id}`);
     const generatedSignature = hmac.digest('hex');
 
@@ -187,6 +268,8 @@ router.post('/verify', authenticateJWT, requireTeamRole(['OWNER']), async (req, 
       `Payment succeeded for plan ${plan.name} (${billingCycle}). Order ID: ${razorpay_order_id}. Payment ID: ${razorpay_payment_id}.`
     );
 
+    logger.info(`[payment-routes] Payment verification succeeded orderId=${razorpay_order_id} paymentId=${razorpay_payment_id} plan=${plan.name} billingCycle=${billingCycle}`);
+
     try {
       const Notification = require('../models/Notification');
       await Notification.create({
@@ -201,11 +284,16 @@ router.post('/verify', authenticateJWT, requireTeamRole(['OWNER']), async (req, 
       logger.error(`[payment-routes] Failed to create payment success notification: ${notifErr.message}`);
     }
 
-    res.status(200).json({
+    const responseBody = {
       message: 'Plan upgraded successfully.',
-      planName: plan.name
-    });
+      planName: plan.name,
+      razorpay_order_id,
+      razorpay_payment_id
+    };
+    logger.info(`[payment-routes] Verify payment response=${JSON.stringify(responseBody)}`);
+    res.status(200).json(responseBody);
   } catch (error) {
+    logger.error(`[payment-routes] Payment verification failed orderId=${razorpay_order_id || 'missing'} paymentId=${razorpay_payment_id || 'missing'} error=${error.message}`);
     // Log payment error audit
     await auditService.logRequestAudit(
       req,
@@ -242,7 +330,10 @@ router.post('/webhook', async (req, res, next) => {
       return res.status(400).json({ message: 'Missing Razorpay webhook signature.' });
     }
 
-    const secret = process.env.RAZORPAY_WEBHOOK_SECRET || 'webhook_secret_placeholder';
+    const secret = String(process.env.RAZORPAY_WEBHOOK_SECRET || '').trim();
+    if (!secret) {
+      return res.status(500).json({ message: 'Razorpay webhook secret is not configured.' });
+    }
     
     // Validate signature using rawBody
     const hmac = crypto.createHmac('sha256', secret);

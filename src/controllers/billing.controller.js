@@ -19,7 +19,11 @@ const getCurrentPlan = async (req, res, next) => {
     const data = await billingService.getOverview(req.user._id);
     res.status(200).json({
       currentPlan: data.subscription.currentPlan,
-      subscription: data.subscription,
+      subscription: {
+        ...data.subscription,
+        planName: data.subscription.currentPlan,
+      },
+      organization: data.organization,
       activePlan: data.activePlan
     });
   } catch (error) {

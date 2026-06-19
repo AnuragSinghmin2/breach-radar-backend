@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const mongoose = require('mongoose');
 const SubscriptionPlan = require('../models/SubscriptionPlan');
 const Subscription = require('../models/Subscription');
 const PaymentTransaction = require('../models/PaymentTransaction');
@@ -9,6 +10,12 @@ const TeamMember = require('../models/TeamMember');
 const teamService = require('./team.service');
 const invoicePdfService = require('./invoicePdf.service');
 const auditService = require('./audit.service');
+const logger = require('../config/logger');
+const {
+  getRazorpayClient,
+  getRazorpayKeyInfo,
+  logRazorpayError
+} = require('../config/razorpay');
 
 const PLAN_ORDER = ['Starter', 'Professional', 'Business', 'Enterprise'];
 
@@ -268,26 +275,53 @@ async function upgradePlan(userId, { planName, planId, billingCycle, provider })
     return changePlanImmediate(user, organization, subscription, plan, normalizedBillingCycle, 'free', 'free_upgrade_txn');
   }
 
-  // Initiate Razorpay order creation
-  const Razorpay = require('razorpay');
-  const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_placeholder',
-    key_secret: process.env.RAZORPAY_KEY_SECRET || 'rzp_secret_placeholder'
-  });
-
   const amountInPaise = Math.round(amount * 100);
 
-  const rzpOrder = await razorpay.orders.create({
-    amount: amountInPaise,
-    currency: plan.currency || 'INR',
-    receipt: `rcpt_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
-    notes: {
-      userId: user._id.toString(),
-      organizationId: organization._id.toString(),
-      planName: plan.name,
-      billingCycle: normalizedBillingCycle
+  let rzpOrder;
+  try {
+    const keyInfo = getRazorpayKeyInfo();
+    logger.info(`[billing-service] Order API called user=${user._id} plan=${plan.name} billingCycle=${normalizedBillingCycle} amountInINR=${amount} amountInPaise=${amountInPaise} keyPrefix=${keyInfo.keyPrefix} mode=${keyInfo.mode}`);
+    if (keyInfo.isLiveMode) {
+      logger.error('[billing-service] Live Razorpay key is active during checkout. Use rzp_test_ credentials for test payments.');
     }
-  });
+
+    const orderPayload = {
+      amount: amountInPaise,
+      currency: plan.currency || 'INR',
+      receipt: `rcpt_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+      notes: {
+        userId: user._id.toString(),
+        organizationId: organization._id.toString(),
+        planName: plan.name,
+        billingCycle: normalizedBillingCycle
+      }
+    };
+    logger.info(`[billing-service] razorpay.orders.create request=${JSON.stringify(orderPayload)}`);
+    rzpOrder = await getRazorpayClient().orders.create(orderPayload);
+    logger.info(`[billing-service] razorpay.orders.create response=${JSON.stringify({
+      id: rzpOrder.id,
+      entity: rzpOrder.entity,
+      amount: rzpOrder.amount,
+      amount_paid: rzpOrder.amount_paid,
+      amount_due: rzpOrder.amount_due,
+      currency: rzpOrder.currency,
+      receipt: rzpOrder.receipt,
+      status: rzpOrder.status,
+      attempts: rzpOrder.attempts,
+      created_at: rzpOrder.created_at
+    })}`);
+  } catch (error) {
+    logRazorpayError('[billing-service] Razorpay order creation failed', error);
+    error.statusCode = error.statusCode || 502;
+    throw error;
+  }
+
+  if (!rzpOrder?.id) {
+    const error = new Error('Razorpay did not return an order id.');
+    error.statusCode = 502;
+    error.code = 'RAZORPAY_ORDER_ID_MISSING';
+    throw error;
+  }
 
   // Save pending transaction in our database
   const transactionId = `txn_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
@@ -307,12 +341,17 @@ async function upgradePlan(userId, { planName, planId, billingCycle, provider })
     }
   });
 
+  const keyInfo = getRazorpayKeyInfo();
+  logger.info(`[billing-service] Order created orderId=${rzpOrder.id} amount=${rzpOrder.amount} currency=${rzpOrder.currency} keyPrefix=${keyInfo.keyPrefix} mode=${keyInfo.mode}`);
+
   return {
     message: `Payment initiated for ${plan.name} plan.`,
     orderId: rzpOrder.id,
     amount: rzpOrder.amount,
     currency: rzpOrder.currency,
-    key: process.env.RAZORPAY_KEY_ID,
+    key: keyInfo.keyId,
+    keyMode: keyInfo.mode,
+    keyPrefix: keyInfo.keyPrefix,
     transaction
   };
 }
