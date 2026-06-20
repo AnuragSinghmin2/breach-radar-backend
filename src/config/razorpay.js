@@ -18,6 +18,8 @@ function getRazorpayModeFromKey(keyId) {
 function getRazorpayCredentials() {
   const keyId = String(process.env.RAZORPAY_KEY_ID || '').trim();
   const keySecret = String(process.env.RAZORPAY_KEY_SECRET || '').trim();
+  console.log("KEY_ID loaded:", !!process.env.RAZORPAY_KEY_ID);
+  console.log("KEY_SECRET loaded:", !!process.env.RAZORPAY_KEY_SECRET);
   const missing = [];
 
   if (!keyId) missing.push('RAZORPAY_KEY_ID');
