@@ -19,6 +19,45 @@ const {
 
 const RAZORPAY_ORDER_TIMEOUT_MS = Number(process.env.RAZORPAY_ORDER_TIMEOUT_MS || 15000);
 
+function getRazorpayWebhookPaymentDetails(paymentEntity = {}) {
+  return {
+    paymentId: paymentEntity.id,
+    orderId: paymentEntity.order_id,
+    status: paymentEntity.status,
+    method: paymentEntity.method,
+    amount: paymentEntity.amount,
+    currency: paymentEntity.currency,
+    errorCode: paymentEntity.error_code,
+    errorDescription: paymentEntity.error_description,
+    errorReason: paymentEntity.error_reason,
+    errorSource: paymentEntity.error_source,
+    errorStep: paymentEntity.error_step,
+    vpa: paymentEntity.vpa,
+    bank: paymentEntity.bank,
+    wallet: paymentEntity.wallet,
+    cardId: paymentEntity.card_id
+  };
+}
+
+function getRazorpayClientEventDetails(body = {}) {
+  const details = body.details || {};
+  return {
+    event: body.event || 'unknown',
+    orderId: body.orderId || details.orderId || details.backendOrderId || details.checkoutOrderId,
+    paymentId: body.paymentId || details.paymentId,
+    amount: body.amount || details.amount,
+    currency: body.currency || details.currency,
+    keyMode: body.keyMode || details.keyMode,
+    code: body.code || details.code,
+    description: body.description || details.description,
+    reason: body.reason || details.reason,
+    source: body.source || details.source,
+    step: body.step || details.step,
+    field: body.field || details.field,
+    details
+  };
+}
+
 function withTimeout(promise, ms, message) {
   let timeoutId;
   const timeout = new Promise((_, reject) => {
@@ -178,6 +217,48 @@ router.post('/create-order', authenticateJWT, requireTeamRole(['OWNER']), async 
 });
 
 /**
+ * POST /api/payment/client-event
+ * Persist browser-side Razorpay checkout diagnostics in backend logs.
+ */
+router.post('/client-event', authenticateJWT, requireTeamRole(['OWNER']), async (req, res, next) => {
+  try {
+    const eventDetails = getRazorpayClientEventDetails(req.body);
+    const logPayload = {
+      ...eventDetails,
+      userId: req.user?._id,
+      organizationId: req.organization?._id,
+      userAgent: req.get('user-agent')
+    };
+
+    if (eventDetails.event === 'payment.failed' || eventDetails.event === 'handler.callback.failure') {
+      logger.error(`[payment-routes] Razorpay client event=${JSON.stringify(logPayload)}`);
+    } else if (eventDetails.event === 'modal.dismiss') {
+      logger.warn(`[payment-routes] Razorpay client event=${JSON.stringify(logPayload)}`);
+    } else {
+      logger.info(`[payment-routes] Razorpay client event=${JSON.stringify(logPayload)}`);
+    }
+
+    if (eventDetails.event === 'payment.failed' && eventDetails.orderId) {
+      await PaymentTransaction.findOneAndUpdate(
+        { providerOrderId: eventDetails.orderId },
+        {
+          $set: {
+            status: 'failed',
+            providerPaymentId: eventDetails.paymentId || '',
+            'metadata.razorpayClientFailure': eventDetails
+          }
+        }
+      );
+    }
+
+    res.status(200).json({ status: 'ok' });
+  } catch (error) {
+    logger.error(`[payment-routes] Client event logging failed: ${error.message}`);
+    next(error);
+  }
+});
+
+/**
  * POST /api/payment/verify
  * Validate dynamic signature submitted by checkout modal and activate subscription plan.
  */
@@ -185,7 +266,13 @@ router.post('/verify', authenticateJWT, requireTeamRole(['OWNER']), async (req, 
   const auditService = require('../services/audit.service');
   const { razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
   try {
-    logger.info(`[payment-routes] Verify payment request orderId=${razorpay_order_id || 'missing'} paymentId=${razorpay_payment_id || 'missing'} hasSignature=${Boolean(razorpay_signature)}`);
+    logger.info(`[payment-routes] Verify payment request=${JSON.stringify({
+      orderId: razorpay_order_id || 'missing',
+      paymentId: razorpay_payment_id || 'missing',
+      hasSignature: Boolean(razorpay_signature),
+      userId: req.user?._id,
+      organizationId: req.organization?._id
+    })}`);
 
     if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
       return res.status(400).json({ message: 'Missing Razorpay signature verification details.' });
@@ -217,17 +304,39 @@ router.post('/verify', authenticateJWT, requireTeamRole(['OWNER']), async (req, 
       } catch (notifErr) {
         logger.error(`[payment-routes] Failed to create payment failure notification: ${notifErr.message}`);
       }
-      return res.status(400).json({ message: 'Invalid payment signature verification failed.' });
+      const responseBody = { message: 'Invalid payment signature verification failed.' };
+      logger.warn(`[payment-routes] Verify payment response=${JSON.stringify({
+        status: 400,
+        orderId: razorpay_order_id,
+        paymentId: razorpay_payment_id,
+        body: responseBody
+      })}`);
+      return res.status(400).json(responseBody);
     }
 
     // Fetch matching pending transaction
     const transaction = await PaymentTransaction.findOne({ providerOrderId: razorpay_order_id });
     if (!transaction) {
-      return res.status(404).json({ message: 'Transaction reference not found.' });
+      const responseBody = { message: 'Transaction reference not found.' };
+      logger.warn(`[payment-routes] Verify payment response=${JSON.stringify({
+        status: 404,
+        orderId: razorpay_order_id,
+        paymentId: razorpay_payment_id,
+        body: responseBody
+      })}`);
+      return res.status(404).json(responseBody);
     }
 
     if (transaction.status === 'succeeded') {
-      return res.status(200).json({ message: 'Payment has already been processed.' });
+      const responseBody = { message: 'Payment has already been processed.' };
+      logger.info(`[payment-routes] Verify payment response=${JSON.stringify({
+        status: 200,
+        orderId: razorpay_order_id,
+        paymentId: razorpay_payment_id,
+        transactionId: transaction.transactionId,
+        body: responseBody
+      })}`);
+      return res.status(200).json(responseBody);
     }
 
     // Update transaction attributes
@@ -268,7 +377,13 @@ router.post('/verify', authenticateJWT, requireTeamRole(['OWNER']), async (req, 
       `Payment succeeded for plan ${plan.name} (${billingCycle}). Order ID: ${razorpay_order_id}. Payment ID: ${razorpay_payment_id}.`
     );
 
-    logger.info(`[payment-routes] Payment verification succeeded orderId=${razorpay_order_id} paymentId=${razorpay_payment_id} plan=${plan.name} billingCycle=${billingCycle}`);
+    logger.info(`[payment-routes] Payment success=${JSON.stringify({
+      orderId: razorpay_order_id,
+      paymentId: razorpay_payment_id,
+      transactionId: transaction.transactionId,
+      plan: plan.name,
+      billingCycle
+    })}`);
 
     try {
       const Notification = require('../models/Notification');
@@ -290,10 +405,22 @@ router.post('/verify', authenticateJWT, requireTeamRole(['OWNER']), async (req, 
       razorpay_order_id,
       razorpay_payment_id
     };
-    logger.info(`[payment-routes] Verify payment response=${JSON.stringify(responseBody)}`);
+    logger.info(`[payment-routes] Verify payment response=${JSON.stringify({
+      status: 200,
+      orderId: razorpay_order_id,
+      paymentId: razorpay_payment_id,
+      transactionId: transaction.transactionId,
+      body: responseBody
+    })}`);
     res.status(200).json(responseBody);
   } catch (error) {
-    logger.error(`[payment-routes] Payment verification failed orderId=${razorpay_order_id || 'missing'} paymentId=${razorpay_payment_id || 'missing'} error=${error.message}`);
+    logger.error(`[payment-routes] Handler callback failure=${JSON.stringify({
+      orderId: razorpay_order_id || 'missing',
+      paymentId: razorpay_payment_id || 'missing',
+      error: error.message,
+      code: error.code,
+      statusCode: error.statusCode
+    })}`);
     // Log payment error audit
     await auditService.logRequestAudit(
       req,
@@ -346,9 +473,14 @@ router.post('/webhook', async (req, res, next) => {
     }
 
     const event = req.body.event;
-    const payload = req.body.payload;
+    const payload = req.body.payload || {};
 
-    logger.info(`Received Razorpay webhook event: ${event}`);
+    logger.info(`[webhook] Razorpay event received=${JSON.stringify({
+      event,
+      hasOrderPayload: Boolean(payload.order),
+      hasPaymentPayload: Boolean(payload.payment),
+      containsSignature: Boolean(signature)
+    })}`);
 
     let providerOrderId = '';
     let providerPaymentId = '';
@@ -368,6 +500,7 @@ router.post('/webhook', async (req, res, next) => {
       providerPaymentId = payload.payment.entity.id;
       isFailure = true;
       failureReason = payload.payment.entity.error_description || 'Payment failed';
+      logger.error(`[webhook] Razorpay payment.failed payload=${JSON.stringify(getRazorpayWebhookPaymentDetails(payload.payment.entity))}`);
     }
 
     if (!providerOrderId) {
@@ -459,6 +592,11 @@ router.post('/webhook', async (req, res, next) => {
 
     } else if (isFailure) {
       transaction.status = 'failed';
+      transaction.providerPaymentId = providerPaymentId || transaction.providerPaymentId;
+      transaction.metadata = {
+        ...(transaction.metadata || {}),
+        razorpayFailure: getRazorpayWebhookPaymentDetails(payload.payment?.entity || {})
+      };
       await transaction.save();
 
       // Audit Log for Payment Failure

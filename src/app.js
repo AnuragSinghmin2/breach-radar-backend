@@ -4,6 +4,9 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const path = require('path');
+const mongoSanitize = require('express-mongo-sanitize'); // SECURITY FIX: MongoDB injection protection
+const passportSetup = require('./config/passport');
+const oauthRoutes = require('./routes/oauth.routes');
 
 const authRoutes = require('./routes/auth.routes');
 const domainRoutes = require('./routes/domain.routes');
@@ -52,6 +55,12 @@ const corsOrigins = [
 // Security Headers
 app.use(helmet());
 
+// SECURITY FIX: Prevent MongoDB injection attacks ($gt, $ne, etc.)
+app.use(mongoSanitize());
+
+// Google OAuth setup
+passportSetup(app);
+
 // Cross Origin Resource Sharing
 app.use(cors({
   origin(origin, callback) {
@@ -93,6 +102,7 @@ app.use(morgan('combined', {
 
 // API Endpoint Handlers Mapping
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/auth', oauthRoutes); // Google OAuth routes
 app.use('/api/v1/domains', domainRoutes);
 app.use('/api/v1/scans', scanRoutes);
 app.use('/api/v1/vulnerabilities', vulnRoutes);
@@ -105,7 +115,7 @@ app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/team', teamRoutes);
 app.use('/api/v1/invitations', invitationRoutes);
 app.use('/api/v1/billing', billingRoutes);
-app.use('/api/payment', paymentRoutes);
+// FIX: Removed duplicate /api/payment route. Only /api/v1/payment is used by frontend.
 app.use('/api/v1/payment', paymentRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/settings', settingsRoutes);

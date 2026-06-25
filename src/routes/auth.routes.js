@@ -9,4 +9,8 @@ router.post('/admin-login', authLimiter, authController.adminLogin);
 router.post('/refresh-token', authController.refreshToken);
 router.post('/logout', authController.logout);
 
+// NEW — Password Reset Routes
+router.post('/forgot-password', authLimiter, authController.forgotPassword);
+router.post('/reset-password', authLimiter, authController.resetPassword);
+
 module.exports = router;

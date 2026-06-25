@@ -47,6 +47,10 @@ const UserSchema = new mongoose.Schema({
     sessionTimeoutMinutes: { type: Number, default: 60 },
     trustedIps: [{ type: String }]
   },
+  // PASSWORD RESET FIELDS — NEW
+  passwordResetToken: { type: String, default: null },
+  passwordResetExpires: { type: Date, default: null },
+
   notifications: {
     emailAlerts: { type: Boolean, default: true },
     scanCompleted: { type: Boolean, default: true },

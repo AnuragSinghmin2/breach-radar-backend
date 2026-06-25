@@ -2,6 +2,7 @@ const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 console.log("KEY_ID loaded:", !!process.env.RAZORPAY_KEY_ID);
 console.log("KEY_SECRET loaded:", !!process.env.RAZORPAY_KEY_SECRET);
+console.log("WEBHOOK_SECRET loaded:", !!process.env.RAZORPAY_WEBHOOK_SECRET);
 const http = require('http');
 const app = require('./app');
 const connectDB = require('./config/db');
