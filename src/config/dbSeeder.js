@@ -20,56 +20,56 @@ const dbSeeder = async () => {
     logger.info('Seeding default subscription plans...');
     const planDefinitions = [
       {
-        name: 'Starter',
-        displayName: 'Starter',
+        name: 'Free',
+        displayName: 'Free',
         price: 0,
         currency: 'INR',
         billingInterval: 'month',
         seatLimit: 1,
         domainLimit: 1,
-        scanLimit: 5,
+        scanLimit: 2,
         sortOrder: 1,
         isActive: true,
-        features: ['1 User Seat', '1 Verified Domain', '5 Scans / month', 'Email Alerts', 'Standard Support']
+        features: ['1 User Seat', '1 Verified Domain', '2 Scans / month', 'Basic Reports', 'Community Support']
+      },
+      {
+        name: 'Starter',
+        displayName: 'Starter',
+        price: 999,
+        currency: 'INR',
+        billingInterval: 'month',
+        seatLimit: 3,
+        domainLimit: 5,
+        scanLimit: 30,
+        sortOrder: 2,
+        isActive: true,
+        features: ['3 User Seats', '5 Verified Domains', '30 Scans / month', 'Email Alerts', 'Standard Support', 'Basic API Access']
       },
       {
         name: 'Professional',
         displayName: 'Professional',
-        price: 1,
+        price: 2999,
         currency: 'INR',
         billingInterval: 'month',
-        seatLimit: 5,
-        domainLimit: 10,
-        scanLimit: 100,
-        sortOrder: 2,
-        isActive: true,
-        features: ['5 User Seats', '10 Verified Domains', '100 Scans / month', 'Continuous Monitoring', 'API Access', 'Priority Support']
-      },
-      {
-        name: 'Business',
-        displayName: 'Business',
-        price: 1999,
-        currency: 'INR',
-        billingInterval: 'month',
-        seatLimit: 25,
-        domainLimit: 50,
-        scanLimit: 1000,
+        seatLimit: 10,
+        domainLimit: 25,
+        scanLimit: 200,
         sortOrder: 3,
         isActive: true,
-        features: ['25 User Seats', '50 Verified Domains', '1000 Scans / month', 'Compliance Reports', 'Workflow Automation', 'Priority Support']
+        features: ['10 User Seats', '25 Verified Domains', '200 Scans / month', 'Continuous Monitoring', 'Full API Access', 'Priority Support', 'Compliance Reports']
       },
       {
         name: 'Enterprise',
         displayName: 'Enterprise',
-        price: 0, // Custom pricing starts at 0, display logic handles "Custom"
+        price: 9999,
         currency: 'INR',
-        billingInterval: 'custom',
-        seatLimit: 999999, // Unlimited indicator
-        domainLimit: 999999, // Unlimited indicator
-        scanLimit: 999999, // Unlimited indicator
+        billingInterval: 'month',
+        seatLimit: 999999,
+        domainLimit: 999999,
+        scanLimit: 999999,
         sortOrder: 4,
         isActive: true,
-        features: ['Unlimited User Seats', 'Unlimited Verified Domains', 'Unlimited Scans', 'Custom Scanning Agents', 'SAML SSO Integration', 'Dedicated TAM']
+        features: ['Unlimited User Seats', 'Unlimited Verified Domains', 'Unlimited Scans', 'Custom Scanning Agents', 'SAML SSO Integration', 'Dedicated TAM', 'Custom Integrations']
       }
     ];
 
@@ -96,7 +96,7 @@ const dbSeeder = async () => {
         role: 'super_admin',
         status: 'active',
         profile: {
-          name: 'Breach Radar Super Admin',
+          name: 'PentestRadar Super Admin',
           avatar: '',
           phoneNumber: '+15550199'
         }

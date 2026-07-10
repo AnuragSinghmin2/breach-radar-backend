@@ -38,7 +38,7 @@ class InvoicePdfService {
         doc.fillColor('#00d68f')
           .fontSize(24)
           .font('Helvetica-Bold')
-          .text('BREACH RADAR', 50, 50);
+          .text('PENTESTRADAR', 50, 50);
 
         doc.fillColor('#94a3b8')
           .fontSize(10)
@@ -166,7 +166,7 @@ class InvoicePdfService {
           .fontSize(9)
           .font('Helvetica-Oblique')
           .text('Invoices are generated automatically on subscription changes.', 50, 480, { align: 'center' })
-          .text('For queries regarding billing or transactions, contact support@breachradar.com.', 50, 495, { align: 'center' });
+          .text('For queries regarding billing or transactions, contact privacy@pentestradar.com.', 50, 495, { align: 'center' });
 
         // Bottom Decorative Accent
         doc.rect(50, 520, 495, 3)

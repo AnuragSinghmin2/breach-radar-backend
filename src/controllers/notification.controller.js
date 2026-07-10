@@ -107,7 +107,7 @@ const sendTestNotification = async (req, res, next) => {
       userId,
       type: 'TEST_ALERT',
       title: 'Test alert triggered',
-      message: 'This is a live test notification generated from your SecureScan Notification preferences.'
+      message: 'This is a live test notification generated from your PentestRadar Notification preferences.'
     });
 
     res.status(200).json({

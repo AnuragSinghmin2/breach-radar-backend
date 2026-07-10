@@ -47,7 +47,7 @@ async function dispatchMonitoringAlert(alertId) {
       break;
     default:
       template = {
-        subject: `[Breach Radar] ${alert.title}`,
+        subject: `[PentestRadar] ${alert.title}`,
         html: emailService.templateSslExpiryWarning({
           domain: domainName,
           daysRemaining: alert.metadata?.daysRemaining,

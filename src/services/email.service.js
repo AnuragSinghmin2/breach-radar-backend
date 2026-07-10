@@ -42,7 +42,7 @@ function buildBaseTemplate({ title, intro, rows = [], footer }) {
     <div style="font-family:Arial,sans-serif;background:#f8fafc;padding:24px;">
       <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
         <div style="background:#0f172a;color:#ffffff;padding:20px 24px;">
-          <h1 style="margin:0;font-size:20px;">Breach Radar</h1>
+          <h1 style="margin:0;font-size:20px;">PentestRadar</h1>
           <p style="margin:8px 0 0;color:#cbd5e1;font-size:14px;">${title}</p>
         </div>
         <div style="padding:24px;">
@@ -52,7 +52,7 @@ function buildBaseTemplate({ title, intro, rows = [], footer }) {
               ? `<table style="width:100%;border-collapse:collapse;margin:16px 0;">${rowHtml}</table>`
               : ''
           }
-          <p style="margin:16px 0 0;color:#64748b;font-size:13px;">${footer || 'Sign in to your Breach Radar dashboard to review details and take action.'}</p>
+          <p style="margin:16px 0 0;color:#64748b;font-size:13px;">${footer || 'Sign in to your PentestRadar dashboard to review details and take action.'}</p>
         </div>
       </div>
     </div>
@@ -67,7 +67,7 @@ function templateSslExpiryWarning({ domain, daysRemaining, expiryDate, severity 
       : `The SSL certificate for <strong>${domain}</strong> expires in <strong>${daysRemaining}</strong> day(s).`;
 
   return {
-    subject: `[Breach Radar] ${title}: ${domain}`,
+    subject: `[PentestRadar] ${title}: ${domain}`,
     html: buildBaseTemplate({
       title,
       intro,
@@ -89,7 +89,7 @@ function templateDomainExpiryWarning({ domain, daysRemaining, expiryDate, regist
       : `The domain registration for <strong>${domain}</strong> expires in <strong>${daysRemaining}</strong> day(s).`;
 
   return {
-    subject: `[Breach Radar] ${title}: ${domain}`,
+    subject: `[PentestRadar] ${title}: ${domain}`,
     html: buildBaseTemplate({
       title,
       intro,
@@ -106,7 +106,7 @@ function templateDomainExpiryWarning({ domain, daysRemaining, expiryDate, regist
 
 function templateCriticalFindings({ workspaceName, domain, criticalCount, highCount, scanId }) {
   return {
-    subject: `[Breach Radar] Critical Security Findings: ${domain}`,
+    subject: `[PentestRadar] Critical Security Findings: ${domain}`,
     html: buildBaseTemplate({
       title: 'Critical Security Findings',
       intro: `A scheduled scan detected high-priority vulnerabilities for <strong>${domain}</strong> in workspace <strong>${workspaceName}</strong>.`,
@@ -129,10 +129,10 @@ function templateDailySummary({
   criticalFindings
 }) {
   return {
-    subject: `[Breach Radar] Daily Monitoring Summary — ${workspaceName}`,
+    subject: `[PentestRadar] Daily Monitoring Summary — ${workspaceName}`,
     html: buildBaseTemplate({
       title: 'Daily Monitoring Summary',
-      intro: `Your daily Breach Radar monitoring run has completed for workspace <strong>${workspaceName}</strong>.`,
+      intro: `Your daily PentestRadar monitoring run has completed for workspace <strong>${workspaceName}</strong>.`,
       rows: [
         { label: 'Domains Scanned', value: String(domainsScanned) },
         { label: 'New Alerts', value: String(alertsCreated) },

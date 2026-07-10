@@ -38,6 +38,8 @@ const app = express();
 
 const defaultCorsOrigins = [
   'http://localhost:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5173',
   'http://127.0.0.1:5174'
 ];
 
@@ -123,7 +125,6 @@ app.use('/api/v1/security', securityRoutes);
 app.use('/api/v1/api-access', apiAccessRoutes);
 app.use('/api/v1/integrations', integrationRoutes);
 app.use('/api/v1/activity-log', activityLogRoutes);
-app.use('/api/team', teamRoutes);
 
 
 // Base Check endpoint

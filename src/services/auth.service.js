@@ -283,7 +283,7 @@ const forgotPassword = async ({ email }) => {
       <div style="max-width:620px;margin:0 auto;background:#0b1728;border:1px solid #20324a;border-radius:12px;padding:28px">
         <h1 style="margin:0 0 12px;font-size:24px;color:#ffffff">Reset Your Password</h1>
         <p style="margin:0 0 22px;color:#aeb8c7;line-height:1.6">
-          We received a request to reset the password for your Breach Radar account.
+          We received a request to reset the password for your PentestRadar account.
           Click the button below to set a new password.
         </p>
         <div style="background:#091421;border:1px solid #20324a;border-radius:10px;padding:18px;margin-bottom:22px">
@@ -309,7 +309,7 @@ const forgotPassword = async ({ email }) => {
   try {
     await sendEmail({
       to: email,
-      subject: 'Breach Radar — Reset Your Password',
+      subject: 'PentestRadar — Reset Your Password',
       html,
       text
     });

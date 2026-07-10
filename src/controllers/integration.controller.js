@@ -60,8 +60,8 @@ const testIntegration = async (req, res, next) => {
 
     try {
       const payload = {
-        text: 'SecureScan Webhook Integration Test Successful! 🚀',
-        content: 'SecureScan Webhook Integration Test Successful! 🚀'
+        text: 'PentestRadar Webhook Integration Test Successful! 🚀',
+        content: 'PentestRadar Webhook Integration Test Successful! 🚀'
       };
 
       const response = await fetch(webhookUrl, {

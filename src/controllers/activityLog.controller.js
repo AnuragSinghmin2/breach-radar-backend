@@ -92,7 +92,7 @@ const exportLogsCsv = async (req, res, next) => {
     });
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="securescan-activity-log.csv"');
+    res.setHeader('Content-Disposition', 'attachment; filename="pentestradar-activity-log.csv"');
     res.status(200).send(csvContent);
   } catch (error) {
     next(error);

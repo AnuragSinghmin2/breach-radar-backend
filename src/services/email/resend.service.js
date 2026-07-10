@@ -129,16 +129,16 @@ function buildInvitationEmail({ organizationName, role, token, expiresAt }) {
   const expiry = formatDate(expiresAt);
 
   return {
-    subject: "You've been invited to join Breach Radar",
+    subject: "You've been invited to join PentestRadar",
     html: `
       <div style="margin:0;background:#07111f;padding:32px;font-family:Inter,Segoe UI,Arial,sans-serif;color:#f8fafc">
         <div style="max-width:620px;margin:0 auto;background:#0b1728;border:1px solid #20324a;border-radius:12px;padding:28px">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
             <div style="width:36px;height:36px;background:#16e095;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;color:#04120d;font-size:18px">B</div>
-            <span style="font-size:20px;font-weight:900;color:#ffffff">Breach Radar</span>
+            <span style="font-size:20px;font-weight:900;color:#ffffff">PentestRadar</span>
           </div>
           <h1 style="margin:0 0 12px;font-size:24px;color:#ffffff">You've been invited!</h1>
-          <p style="margin:0 0 22px;color:#aeb8c7;line-height:1.6">You have been invited to collaborate in an organization on Breach Radar.</p>
+          <p style="margin:0 0 22px;color:#aeb8c7;line-height:1.6">You have been invited to collaborate in an organization on PentestRadar.</p>
           <div style="background:#091421;border:1px solid #20324a;border-radius:10px;padding:18px;margin-bottom:22px">
             <p style="margin:0 0 8px;color:#aeb8c7;font-size:13px;text-transform:uppercase;letter-spacing:0.5px">Organization</p>
             <strong style="display:block;margin-bottom:16px;font-size:18px;color:#ffffff">${organizationName}</strong>
@@ -160,7 +160,7 @@ function buildInvitationEmail({ organizationName, role, token, expiresAt }) {
       </div>
     `,
     text: [
-      "You've been invited to join Breach Radar",
+      "You've been invited to join PentestRadar",
       `Organization: ${organizationName}`,
       `Role Assigned: ${role}`,
       `Invitation Expires: ${expiry}`,
@@ -173,20 +173,20 @@ function buildInvitationEmail({ organizationName, role, token, expiresAt }) {
 function buildWelcomeEmail({ name }) {
   const loginUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   return {
-    subject: 'Welcome to Breach Radar — Your account is ready!',
+    subject: 'Welcome to PentestRadar — Your account is ready!',
     html: `
       <div style="margin:0;background:#07111f;padding:32px;font-family:Inter,Segoe UI,Arial,sans-serif;color:#f8fafc">
         <div style="max-width:620px;margin:0 auto;background:#0b1728;border:1px solid #20324a;border-radius:12px;padding:28px">
           <div style="text-align:center;margin-bottom:28px">
             <div style="width:64px;height:64px;background:#16e095;border-radius:16px;display:inline-flex;align-items:center;justify-content:center;font-weight:900;color:#04120d;font-size:32px;margin-bottom:16px">B</div>
-            <h1 style="margin:0;font-size:26px;color:#ffffff">Welcome to Breach Radar!</h1>
+            <h1 style="margin:0;font-size:26px;color:#ffffff">Welcome to PentestRadar!</h1>
           </div>
           <p style="margin:0 0 22px;color:#aeb8c7;line-height:1.6;font-size:16px">
             Hi <strong style="color:#ffffff">${name}</strong>,<br><br>
             Your account is ready. Start securing your digital assets today.
           </p>
           <div style="background:#091421;border:1px solid #20324a;border-radius:10px;padding:18px;margin-bottom:22px">
-            <p style="margin:0 0 12px;color:#ffffff;font-weight:700;font-size:15px">What you can do with Breach Radar:</p>
+            <p style="margin:0 0 12px;color:#ffffff;font-weight:700;font-size:15px">What you can do with PentestRadar:</p>
             <p style="margin:0 0 8px;color:#aeb8c7;font-size:14px">✅ Scan domains for vulnerabilities</p>
             <p style="margin:0 0 8px;color:#aeb8c7;font-size:14px">✅ Monitor SSL certificates & domain expiry</p>
             <p style="margin:0 0 8px;color:#aeb8c7;font-size:14px">✅ Get real-time security alerts</p>
@@ -197,25 +197,25 @@ function buildWelcomeEmail({ name }) {
           </a>
           <hr style="margin:28px 0;border:none;border-top:1px solid #20324a">
           <p style="margin:0;color:#6b7a8d;font-size:12px;text-align:center">
-            Breach Radar — Enterprise Security Platform
+            PentestRadar — Enterprise Security Platform
           </p>
         </div>
       </div>
     `,
-    text: `Welcome to Breach Radar, ${name}!\n\nYour account is ready.\n\nLog in here: ${loginUrl}`,
+    text: `Welcome to PentestRadar, ${name}!\n\nYour account is ready.\n\nLog in here: ${loginUrl}`,
   };
 }
 
 // Template 3: Password Reset (already in auth.service.js but reusable here too)
 function buildPasswordResetEmail({ email, resetUrl }) {
   return {
-    subject: 'Breach Radar — Reset Your Password',
+    subject: 'PentestRadar — Reset Your Password',
     html: `
       <div style="margin:0;background:#07111f;padding:32px;font-family:Inter,Segoe UI,Arial,sans-serif;color:#f8fafc">
         <div style="max-width:620px;margin:0 auto;background:#0b1728;border:1px solid #20324a;border-radius:12px;padding:28px">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
             <div style="width:36px;height:36px;background:#16e095;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-weight:900;color:#04120d;font-size:18px">B</div>
-            <span style="font-size:20px;font-weight:900;color:#ffffff">Breach Radar</span>
+            <span style="font-size:20px;font-weight:900;color:#ffffff">PentestRadar</span>
           </div>
           <h1 style="margin:0 0 12px;font-size:24px;color:#ffffff">Reset Your Password</h1>
           <p style="margin:0 0 22px;color:#aeb8c7;line-height:1.6">
@@ -253,13 +253,13 @@ function buildInvoiceEmail({ invoiceNumber, planName, amount, date, downloadLink
   }).format(amount);
 
   return {
-    subject: `Breach Radar Invoice — ${invoiceNumber}`,
+    subject: `PentestRadar Invoice — ${invoiceNumber}`,
     html: `
       <div style="margin:0;background:#07111f;padding:32px;font-family:Inter,Segoe UI,Arial,sans-serif;color:#f8fafc">
         <div style="max-width:620px;margin:0 auto;background:#0b1728;border:1px solid #20324a;border-radius:12px;padding:28px">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
             <div style="width:36px;height:36px;background:#16e095;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-weight:900;color:#04120d;font-size:18px">B</div>
-            <span style="font-size:20px;font-weight:900;color:#ffffff">Breach Radar</span>
+            <span style="font-size:20px;font-weight:900;color:#ffffff">PentestRadar</span>
           </div>
           <h1 style="margin:0 0 12px;font-size:24px;color:#ffffff">Payment Successful!</h1>
           <p style="margin:0 0 22px;color:#aeb8c7;line-height:1.6">Thank you for your payment. Here are your subscription details.</p>
@@ -278,7 +278,7 @@ function buildInvoiceEmail({ invoiceNumber, planName, amount, date, downloadLink
           </a>
           <hr style="margin:28px 0;border:none;border-top:1px solid #20324a">
           <p style="margin:0;color:#6b7a8d;font-size:12px;text-align:center">
-            Thank you for choosing Breach Radar!
+            Thank you for choosing PentestRadar!
           </p>
         </div>
       </div>
