@@ -13,4 +13,8 @@ router.post('/logout', authController.logout);
 router.post('/forgot-password', authLimiter, authController.forgotPassword);
 router.post('/reset-password', authLimiter, authController.resetPassword);
 
+// NEW — Email Verification Routes
+router.post('/verify-email', authController.verifyEmail);
+router.post('/resend-verification', authLimiter, authController.resendVerificationEmail);
+
 module.exports = router;

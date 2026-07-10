@@ -47,9 +47,14 @@ const UserSchema = new mongoose.Schema({
     sessionTimeoutMinutes: { type: Number, default: 60 },
     trustedIps: [{ type: String }]
   },
-  // PASSWORD RESET FIELDS — NEW
+  // PASSWORD RESET FIELDS
   passwordResetToken: { type: String, default: null },
   passwordResetExpires: { type: Date, default: null },
+
+  // EMAIL VERIFICATION FIELDS
+  isEmailVerified: { type: Boolean, default: false },
+  emailVerifyToken: { type: String, default: null },
+  emailVerifyExpires: { type: Date, default: null },
 
   notifications: {
     emailAlerts: { type: Boolean, default: true },

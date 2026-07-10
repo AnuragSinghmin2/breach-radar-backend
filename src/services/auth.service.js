@@ -46,9 +46,17 @@ const registerUser = async ({ email, password, name }) => {
 
   const passwordHash = await hashPassword(password);
 
+  // Generate email verification token
+  const verifyToken = crypto.randomBytes(32).toString('hex');
+  const verifyTokenHash = crypto.createHash('sha256').update(verifyToken).digest('hex');
+
   const user = new User({
     email,
     passwordHash,
+    status: 'pending_verification',
+    isEmailVerified: false,
+    emailVerifyToken: verifyTokenHash,
+    emailVerifyExpires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
     profile: { name, avatar: '', phoneNumber: '' }
   });
 
@@ -66,29 +74,62 @@ const registerUser = async ({ email, password, name }) => {
   await user.save();
   await teamService.ensureOrganizationForUser(user);
 
-  const accessToken = generateAccessToken(user, workspace._id);
-  const refreshToken = generateRefreshToken(user);
-
   logger.info(`New user registered: ${email} (Workspace ID: ${workspace._id})`);
 
-  // Send welcome email (non-blocking — don't fail registration if email fails)
-  sendWelcomeEmail({ to: email, name }).catch((err) => {
-    logger.warn(`[register] Welcome email failed for ${email}: ${err.message}`);
+  // Send verification email
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const verifyUrl = `${frontendUrl}/verify-email?token=${verifyToken}&email=${encodeURIComponent(email)}`;
+
+  const html = `
+    <div style="margin:0;background:#07111f;padding:32px;font-family:Inter,Segoe UI,Arial,sans-serif;color:#f8fafc">
+      <div style="max-width:620px;margin:0 auto;background:#0b1728;border:1px solid #20324a;border-radius:12px;padding:28px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+          <div style="width:36px;height:36px;background:#16e095;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-weight:900;color:#04120d;font-size:18px">B</div>
+          <span style="font-size:20px;font-weight:900;color:#ffffff">Breach Radar</span>
+        </div>
+        <h1 style="margin:0 0 12px;font-size:24px;color:#ffffff">Verify Your Email Address</h1>
+        <p style="margin:0 0 22px;color:#aeb8c7;line-height:1.6">
+          Hi <strong style="color:#ffffff">${name}</strong>,<br><br>
+          Thank you for creating your Breach Radar account! Please verify your email to activate it.
+        </p>
+        <div style="background:#091421;border:1px solid #20324a;border-radius:10px;padding:18px;margin-bottom:22px">
+          <p style="margin:0 0 8px;color:#aeb8c7;font-size:13px">Account Email</p>
+          <strong style="display:block;margin-bottom:16px;color:#ffffff">${email}</strong>
+          <p style="margin:0 0 8px;color:#aeb8c7;font-size:13px">Link Expires In</p>
+          <strong style="display:block;color:#16e095">24 Hours</strong>
+        </div>
+        <a href="${verifyUrl}" style="display:inline-block;background:#16e095;color:#04120d;text-decoration:none;font-weight:800;padding:14px 28px;border-radius:8px;font-size:16px">
+          Verify Email Address →
+        </a>
+        <p style="margin:24px 0 0;color:#aeb8c7;font-size:13px;line-height:1.6">
+          If you did not create this account, ignore this email.<br><br>
+          If the button does not work, copy this link:<br>
+          <a href="${verifyUrl}" style="color:#16e095">${verifyUrl}</a>
+        </p>
+      </div>
+    </div>
+  `;
+
+  sendEmail({
+    to: email,
+    subject: 'Breach Radar — Verify Your Email Address',
+    html,
+    text: `Verify your email: ${verifyUrl}\n\nExpires in 24 hours.`
+  }).catch((err) => {
+    logger.warn(`[register] Verification email failed for ${email}: ${err.message}`);
   });
 
   return {
+    message: 'Registration successful! Please check your email to verify your account.',
+    requiresVerification: true,
     user: {
       id: user._id,
       email: user.email,
       role: user.role,
       status: user.status,
+      isEmailVerified: false,
       profile: user.profile,
-      preferences: user.preferences,
-      createdAt: user.createdAt,
-      lastLogin: user.lastLogin
-    },
-    accessToken,
-    refreshToken
+    }
   };
 };
 
@@ -109,6 +150,15 @@ const loginUser = async ({ email, password }) => {
   if (user.status === 'suspended') {
     const err = new Error('Your account has been suspended.');
     err.statusCode = 403;
+    throw err;
+  }
+
+  // Email verify nahi hua to login mat karne do
+  if (user.status === 'pending_verification' || !user.isEmailVerified) {
+    const err = new Error('Please verify your email address before logging in. Check your inbox for the verification link.');
+    err.statusCode = 403;
+    err.code = 'EMAIL_NOT_VERIFIED';
+    err.email = user.email;
     throw err;
   }
 
@@ -368,6 +418,102 @@ const resetPassword = async ({ token, email, newPassword }) => {
   return { message: 'Password has been reset successfully. You can now log in.' };
 };
 
+// ─── EMAIL VERIFICATION ────────────────────────────────────────────────────────
+
+const verifyEmail = async ({ token, email }) => {
+  if (!token || !email) {
+    const err = new Error('Token and email are required.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+  const user = await User.findOne({
+    email: email.toLowerCase().trim(),
+    emailVerifyToken: tokenHash,
+    emailVerifyExpires: { $gt: new Date() }
+  });
+
+  if (!user) {
+    const err = new Error('Invalid or expired verification link. Please request a new one.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Activate account
+  user.isEmailVerified = true;
+  user.status = 'active';
+  user.emailVerifyToken = null;
+  user.emailVerifyExpires = null;
+  await user.save();
+
+  // Send welcome email now that they verified
+  sendWelcomeEmail({ to: user.email, name: user.profile.name }).catch(() => {});
+
+  logger.info(`[verify-email] Email verified: ${email}`);
+
+  return { message: 'Email verified successfully! You can now log in.' };
+};
+
+const resendVerificationEmail = async ({ email }) => {
+  if (!email) {
+    const err = new Error('Email is required.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const user = await User.findOne({ email: email.toLowerCase().trim() });
+
+  // Always return same response for security
+  if (!user || user.isEmailVerified) {
+    return { message: 'If your email is registered and unverified, a new link has been sent.' };
+  }
+
+  // Generate new token
+  const verifyToken = crypto.randomBytes(32).toString('hex');
+  const verifyTokenHash = crypto.createHash('sha256').update(verifyToken).digest('hex');
+
+  user.emailVerifyToken = verifyTokenHash;
+  user.emailVerifyExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  await user.save();
+
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const verifyUrl = `${frontendUrl}/verify-email?token=${verifyToken}&email=${encodeURIComponent(email)}`;
+
+  const html = `
+    <div style="margin:0;background:#07111f;padding:32px;font-family:Inter,Segoe UI,Arial,sans-serif;color:#f8fafc">
+      <div style="max-width:620px;margin:0 auto;background:#0b1728;border:1px solid #20324a;border-radius:12px;padding:28px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+          <div style="width:36px;height:36px;background:#16e095;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-weight:900;color:#04120d;font-size:18px">B</div>
+          <span style="font-size:20px;font-weight:900;color:#ffffff">Breach Radar</span>
+        </div>
+        <h1 style="margin:0 0 12px;font-size:24px;color:#ffffff">New Verification Link</h1>
+        <p style="margin:0 0 22px;color:#aeb8c7;line-height:1.6">
+          Here is your new email verification link. Click below to verify your account.
+        </p>
+        <a href="${verifyUrl}" style="display:inline-block;background:#16e095;color:#04120d;text-decoration:none;font-weight:800;padding:14px 28px;border-radius:8px;font-size:16px">
+          Verify Email Address →
+        </a>
+        <p style="margin:24px 0 0;color:#aeb8c7;font-size:13px">
+          This link expires in 24 hours.<br>
+          <a href="${verifyUrl}" style="color:#16e095">${verifyUrl}</a>
+        </p>
+      </div>
+    </div>
+  `;
+
+  await sendEmail({
+    to: email,
+    subject: 'Breach Radar — New Verification Link',
+    html,
+    text: `New verification link: ${verifyUrl}`
+  });
+
+  logger.info(`[resend-verification] Sent to: ${email}`);
+  return { message: 'If your email is registered and unverified, a new link has been sent.' };
+};
+
 module.exports = {
   hashPassword,
   verifyPassword,
@@ -376,5 +522,7 @@ module.exports = {
   loginAdmin,
   refreshTokens,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  verifyEmail,
+  resendVerificationEmail
 };

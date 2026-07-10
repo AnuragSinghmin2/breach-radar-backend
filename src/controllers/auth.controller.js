@@ -126,6 +126,28 @@ const resetPassword = async (req, res, next) => {
   }
 };
 
+// NEW — Email Verification
+const verifyEmail = async (req, res, next) => {
+  try {
+    const { token, email } = req.body;
+    const result = await authService.verifyEmail({ token, email });
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// NEW — Resend Verification Email
+const resendVerificationEmail = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    const result = await authService.resendVerificationEmail({ email });
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -133,5 +155,7 @@ module.exports = {
   refreshToken,
   logout,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  verifyEmail,
+  resendVerificationEmail
 };
