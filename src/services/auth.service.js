@@ -153,8 +153,9 @@ const loginUser = async ({ email, password }) => {
     throw err;
   }
 
-  // Email verify nahi hua to login mat karne do
-  if (user.status === 'pending_verification' || !user.isEmailVerified) {
+  // New signups stay blocked until they verify. Legacy active accounts are allowed
+  // once and backfilled below so old users are not locked out by the new flag.
+  if (user.status === 'pending_verification') {
     const err = new Error('Please verify your email address before logging in. Check your inbox for the verification link.');
     err.statusCode = 403;
     err.code = 'EMAIL_NOT_VERIFIED';
@@ -167,6 +168,12 @@ const loginUser = async ({ email, password }) => {
     const err = new Error('Invalid email or password.');
     err.statusCode = 401;
     throw err;
+  }
+
+  if (!user.isEmailVerified) {
+    user.isEmailVerified = true;
+    user.emailVerifyToken = null;
+    user.emailVerifyExpires = null;
   }
 
   user.lastLogin = new Date();
