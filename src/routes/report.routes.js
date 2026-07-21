@@ -11,6 +11,7 @@ router.use(enforceIpWhitelist);
 
 router.get('/', reportController.getReports);
 router.post('/', checkWorkspaceRole([WORKSPACE_ROLES.OWNER, WORKSPACE_ROLES.ADMIN, WORKSPACE_ROLES.ANALYST]), reportController.generateReport);
+router.get('/:id/pdf', reportController.downloadReportPdf);
 router.get('/:id', reportController.getReportFile);
 
 module.exports = router;

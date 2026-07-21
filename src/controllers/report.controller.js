@@ -3,6 +3,7 @@ const Scan = require('../models/Scan');
 const Domain = require('../models/Domain');
 const { REPORT_TEMPLATES, REPORT_STATUS, SCAN_STATUS } = require('../constants');
 const teamService = require('../services/team.service');
+const reportPdfService = require('../services/reportPdf.service');
 const logger = require('../config/logger');
 
 function scanTypeToReportType(scanType) {
@@ -40,6 +41,15 @@ function formatGeneratedLines(date, fileSize = '-') {
   return `${dateLine}\n${timeLine}\n${fileSize}`;
 }
 
+const DEFAULT_SECTIONS = [
+  'Vulnerability Details',
+  'Risk Analysis',
+  'Remediation Steps',
+  'Scan Summary',
+  'OWASP Top 10',
+  'Executive Summary'
+];
+
 function mapScanToReport(scan) {
   const counts = scan.vulnerabilitiesCount || { critical: 0, high: 0, medium: 0, low: 0 };
   const completed = scan.status === SCAN_STATUS.COMPLETED;
@@ -65,7 +75,8 @@ function mapScanToReport(scan) {
     type: scanTypeToReportType(scan.scanType),
     owner: 'Security Team',
     scanId: scan._id,
-    generatedAt
+    generatedAt,
+    sections: DEFAULT_SECTIONS
   };
 }
 
@@ -87,7 +98,8 @@ function mapReportDocument(report) {
     type: scan ? scanTypeToReportType(scan.scanType) : 'full',
     owner: report.owner || 'Security Team',
     scanId: report.scanId?._id || report.scanId,
-    generatedAt: report.generatedAt
+    generatedAt: report.generatedAt,
+    sections: report.sections?.length ? report.sections : DEFAULT_SECTIONS
   };
 }
 
@@ -239,8 +251,61 @@ const getReportFile = async (req, res, next) => {
   }
 };
 
+function buildReportFilename(report) {
+  const reportId = String(report.id || report.reportNumber || 'report').replace('#', '');
+  const domain = String(report.domain || 'domain').replace(/[^\w.-]+/g, '-');
+  return `${reportId}-${domain}.pdf`;
+}
+
+// GET /api/v1/reports/:id/pdf
+const downloadReportPdf = async (req, res, next) => {
+  try {
+    const workspaceId = req.workspaceId;
+    const { id } = req.params;
+
+    const report = await Report.findOne({ _id: id, workspaceId })
+      .populate('domainId', 'domain score')
+      .populate('scanId');
+
+    let reportData = null;
+
+    if (report) {
+      reportData = mapReportDocument(report);
+      await teamService.recordWorkspaceActivity({
+        userId: req.user._id,
+        action: 'Report download',
+        target: report.domainId?.domain || String(report._id),
+        metadata: { reportId: report._id, format: 'pdf' }
+      });
+    } else {
+      const scan = await Scan.findOne({ _id: id, workspaceId }).populate('domainId', 'domain score');
+      if (!scan) {
+        return res.status(404).json({ message: 'Report not found or unauthorized.' });
+      }
+
+      reportData = mapScanToReport(scan);
+      await teamService.recordWorkspaceActivity({
+        userId: req.user._id,
+        action: 'Report download',
+        target: scan.domainId?.domain || String(scan._id),
+        metadata: { scanId: scan._id, format: 'pdf' }
+      });
+    }
+
+    const buffer = await reportPdfService.generateReportPdf(reportData);
+    const filename = buildReportFilename(reportData);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.status(200).send(buffer);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getReports,
   generateReport,
-  getReportFile
+  getReportFile,
+  downloadReportPdf
 };
