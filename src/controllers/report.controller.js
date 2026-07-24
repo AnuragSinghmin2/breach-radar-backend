@@ -116,18 +116,27 @@ const getReports = async (req, res, next) => {
       .populate('scanId')
       .sort({ generatedAt: -1 });
 
-    if (savedReports.length > 0) {
-      return res.status(200).json({
-        reports: savedReports.map(mapReportDocument)
-      });
-    }
+    // Scans that already have a saved Report shouldn't be duplicated below.
+    const reportedScanIds = new Set(
+      savedReports
+        .filter((report) => report.scanId)
+        .map((report) => report.scanId._id.toString())
+    );
 
     const scans = await Scan.find({ workspaceId })
       .populate('domainId', 'domain score')
       .sort({ createdAt: -1 });
 
+    const scanOnlyReports = scans
+      .filter((scan) => !reportedScanIds.has(scan._id.toString()))
+      .map(mapScanToReport);
+
+    const allReports = [...savedReports.map(mapReportDocument), ...scanOnlyReports].sort(
+      (a, b) => new Date(b.generatedAt) - new Date(a.generatedAt)
+    );
+
     res.status(200).json({
-      reports: scans.map(mapScanToReport)
+      reports: allReports
     });
   } catch (error) {
     next(error);
