@@ -133,7 +133,7 @@ const registerUser = async ({ email, password, name }) => {
   };
 };
 
-const loginUser = async ({ email, password }) => {
+const loginUser = async ({ email, password, rememberMe = true }) => {
   if (!email || !password) {
     const err = new Error('Email and password are required.');
     err.statusCode = 400;
@@ -182,7 +182,7 @@ const loginUser = async ({ email, password }) => {
 
   const activeWorkspaceId = user.preferences.activeWorkspaceId;
   const accessToken = generateAccessToken(user, activeWorkspaceId);
-  const refreshToken = generateRefreshToken(user);
+  const refreshToken = generateRefreshToken(user, { rememberMe });
 
   logger.info(`User logged in: ${email}`);
 
@@ -198,7 +198,8 @@ const loginUser = async ({ email, password }) => {
       lastLogin: user.lastLogin
     },
     accessToken,
-    refreshToken
+    refreshToken,
+    rememberMe: Boolean(rememberMe),
   };
 };
 
@@ -293,9 +294,9 @@ const refreshTokens = async (token) => {
   }
 
   const accessToken = generateAccessToken(user, user.preferences.activeWorkspaceId);
-  const newRefreshToken = generateRefreshToken(user);
+  const newRefreshToken = generateRefreshToken(user, { rememberMe: decoded.rememberMe });
 
-  return { accessToken, refreshToken: newRefreshToken };
+  return { accessToken, refreshToken: newRefreshToken, rememberMe: Boolean(decoded.rememberMe) };
 };
 
 // ─── PASSWORD RESET — NEW FUNCTIONS ───────────────────────────────────────────

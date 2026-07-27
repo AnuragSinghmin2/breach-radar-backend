@@ -1,5 +1,5 @@
 const authService = require('../services/auth.service');
-const { setTokensCookies } = require('../utils/jwt');
+const { setTokensCookies, resolveRememberMe } = require('../utils/jwt');
 const logger = require('../config/logger');
 const Session = require('../models/Session');
 const { logAudit } = require('../services/audit.service');
@@ -35,7 +35,7 @@ const register = async (req, res, next) => {
   try {
     const { email, password, name } = req.body;
     const result = await authService.registerUser({ email, password, name });
-    setTokensCookies(res, result.accessToken, result.refreshToken);
+    setTokensCookies(res, result.accessToken, result.refreshToken, { rememberMe: true });
     await createUserSession(result.user.id, result.refreshToken, req);
     res.status(201).json({ message: 'Registration successful', user: result.user, accessToken: result.accessToken });
   } catch (error) {
@@ -45,9 +45,10 @@ const register = async (req, res, next) => {
 
 const login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
-    const result = await authService.loginUser({ email, password });
-    setTokensCookies(res, result.accessToken, result.refreshToken);
+    const { email, password, rememberMe } = req.body;
+    const persistentSession = resolveRememberMe(rememberMe);
+    const result = await authService.loginUser({ email, password, rememberMe: persistentSession });
+    setTokensCookies(res, result.accessToken, result.refreshToken, { rememberMe: persistentSession });
     await createUserSession(result.user.id, result.refreshToken, req);
     res.status(200).json({ message: 'Login successful', user: result.user, accessToken: result.accessToken });
   } catch (error) {
@@ -59,7 +60,7 @@ const adminLogin = async (req, res, next) => {
   try {
     const { email, password } = req.body;
     const result = await authService.loginAdmin({ email, password });
-    setTokensCookies(res, result.accessToken, result.refreshToken);
+    setTokensCookies(res, result.accessToken, result.refreshToken, { rememberMe: true });
     await createUserSession(result.user.id, result.refreshToken, req);
     res.status(200).json({ message: 'Admin login successful', user: result.user, accessToken: result.accessToken });
   } catch (error) {
@@ -71,7 +72,7 @@ const refreshToken = async (req, res, next) => {
   try {
     const token = req.cookies?.refreshToken || req.body.refreshToken;
     const result = await authService.refreshTokens(token);
-    setTokensCookies(res, result.accessToken, result.refreshToken);
+    setTokensCookies(res, result.accessToken, result.refreshToken, { rememberMe: result.rememberMe });
     if (token) {
       await Session.updateOne({ token }, { token: result.refreshToken, lastActivity: new Date() });
     }
