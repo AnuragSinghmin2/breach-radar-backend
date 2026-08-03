@@ -28,6 +28,7 @@ const securityRoutes = require('./routes/security.routes');
 const apiAccessRoutes = require('./routes/apiAccess.routes');
 const integrationRoutes = require('./routes/integration.routes');
 const activityLogRoutes = require('./routes/activityLog.routes');
+const supportRoutes = require('./routes/support.routes');
 
 
 const { generalLimiter } = require('./middleware/rateLimiter');
@@ -125,6 +126,7 @@ app.use('/api/v1/security', securityRoutes);
 app.use('/api/v1/api-access', apiAccessRoutes);
 app.use('/api/v1/integrations', integrationRoutes);
 app.use('/api/v1/activity-log', activityLogRoutes);
+app.use('/api/v1/support', supportRoutes);
 
 
 // Base Check endpoint

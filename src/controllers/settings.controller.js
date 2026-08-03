@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Workspace = require('../models/Workspace');
 const { logRequestAudit } = require('../services/audit.service');
+const { resetWorkspaceData } = require('../services/workspaceReset.service');
 
 const getNotifications = async (req, res, next) => {
   try {
@@ -71,9 +72,34 @@ const updateScanPreferences = async (req, res, next) => {
   }
 };
 
+const resetWorkspace = async (req, res, next) => {
+  try {
+    const confirmation = String(req.body?.confirmation || '').trim().toUpperCase();
+    if (confirmation !== 'RESET') {
+      return res.status(400).json({ message: 'Type RESET to confirm workspace reset.' });
+    }
+
+    await resetWorkspaceData({
+      workspaceId: req.workspaceId,
+      userId: req.user._id,
+      userEmail: req.user.email,
+      organizationId: req.user.preferences?.activeOrganizationId || null,
+    });
+
+    await logRequestAudit(req, 'Workspace Reset', 'Workspace data was permanently reset.');
+
+    res.status(200).json({
+      message: 'Workspace reset successfully.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getNotifications,
   updateNotifications,
   getScanPreferences,
-  updateScanPreferences
+  updateScanPreferences,
+  resetWorkspace,
 };

@@ -119,8 +119,14 @@ const getDashboardStats = async (req, res, next) => {
       { $group: { _id: '$status', count: { $sum: 1 } } }
     ]);
     ticketsRaw.forEach(item => {
-      if (item._id && ticketsOverview[item._id] !== undefined) {
-        ticketsOverview[item._id] = item.count;
+      if (item._id === 'Open') {
+        ticketsOverview.open += item.count;
+      } else if (['In Progress', 'Waiting for Customer', 'Resolved'].includes(item._id)) {
+        ticketsOverview.assigned += item.count;
+      } else if (item._id === 'Closed') {
+        ticketsOverview.closed += item.count;
+      } else if (item._id && ticketsOverview[item._id] !== undefined) {
+        ticketsOverview[item._id] += item.count;
       }
     });
 
@@ -698,11 +704,15 @@ const getSupportTickets = async (req, res, next) => {
     const query = {};
 
     if (status && status !== 'all') {
-      query.status = status;
+      const legacyStatusMap = {
+        open: 'Open',
+        assigned: 'In Progress',
+        closed: 'Closed'
+      };
+      query.status = legacyStatusMap[status] || status;
     }
 
     const tickets = await SupportTicket.find(query)
-      .populate('userId', 'email profile.name')
       .populate('assignedTo', 'email profile.name')
       .sort({ updatedAt: -1 });
 
@@ -721,7 +731,7 @@ const assignSupportTicket = async (req, res, next) => {
     }
 
     ticket.assignedTo = assignedToUserId || req.user._id;
-    ticket.status = 'assigned';
+    ticket.status = 'In Progress';
     await ticket.save();
 
     res.status(200).json({ message: 'Ticket assigned successfully', ticket });
@@ -733,23 +743,16 @@ const assignSupportTicket = async (req, res, next) => {
 const replySupportTicket = async (req, res, next) => {
   try {
     const { message } = req.body;
-    if (!message) {
-      return res.status(400).json({ message: 'Message content is required' });
-    }
 
     const ticket = await SupportTicket.findById(req.params.id);
     if (!ticket) {
       return res.status(404).json({ message: 'Support ticket not found' });
     }
 
-    ticket.messages.push({
-      senderId: req.user._id,
-      senderName: req.user.profile.name || 'Support Agent',
-      message
-    });
+    ticket.adminNotes = [ticket.adminNotes, message].filter(Boolean).join('\n\n');
 
-    if (ticket.status === 'open') {
-      ticket.status = 'assigned';
+    if (ticket.status === 'Open') {
+      ticket.status = 'In Progress';
       ticket.assignedTo = req.user._id;
     }
 
@@ -768,7 +771,7 @@ const resolveSupportTicket = async (req, res, next) => {
       return res.status(404).json({ message: 'Support ticket not found' });
     }
 
-    ticket.status = 'closed';
+    ticket.status = 'Resolved';
     await ticket.save();
 
     res.status(200).json({ message: 'Support ticket marked as resolved', ticket });

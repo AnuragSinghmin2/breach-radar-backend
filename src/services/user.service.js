@@ -2,6 +2,7 @@ const fs = require('fs/promises');
 const path = require('path');
 const User = require('../models/User');
 const { validateEmailFormat } = require('../utils/validators');
+const { USER_ROLES } = require('../constants');
 
 const LOCAL_UPLOAD_PREFIX = '/uploads/avatars/';
 
@@ -44,8 +45,19 @@ async function getCurrentUserProfile(userId) {
 }
 
 async function updateCurrentUserProfile(userId, payload) {
+  const user = await User.findById(userId);
+  if (!user) {
+    const error = new Error('User profile not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  // Admins cannot change their own email from the profile form; only
+  // super admins (and regular users) retain that ability.
+  const allowEmailChange = user.role !== USER_ROLES.ADMIN;
+
   const name = String(payload.name || '').trim();
-  const email = String(payload.email || '').trim().toLowerCase();
+  const email = allowEmailChange ? String(payload.email || '').trim().toLowerCase() : user.email;
   const phoneNumber = String(payload.phoneNumber || '').trim();
   const organization = String(payload.organization || '').trim();
   const jobTitle = String(payload.jobTitle || '').trim();
@@ -58,29 +70,24 @@ async function updateCurrentUserProfile(userId, payload) {
     throw error;
   }
 
-  if (!email || !validateEmailFormat(email)) {
-    const error = new Error('Enter a valid email address.');
-    error.statusCode = 400;
-    throw error;
+  if (allowEmailChange) {
+    if (!email || !validateEmailFormat(email)) {
+      const error = new Error('Enter a valid email address.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const emailOwner = await User.findOne({ email, _id: { $ne: userId } }).select('_id');
+    if (emailOwner) {
+      const error = new Error('This email address is already in use.');
+      error.statusCode = 409;
+      throw error;
+    }
   }
 
   if (!validatePhoneNumber(phoneNumber)) {
     const error = new Error('Enter a valid phone number.');
     error.statusCode = 400;
-    throw error;
-  }
-
-  const emailOwner = await User.findOne({ email, _id: { $ne: userId } }).select('_id');
-  if (emailOwner) {
-    const error = new Error('This email address is already in use.');
-    error.statusCode = 409;
-    throw error;
-  }
-
-  const user = await User.findById(userId);
-  if (!user) {
-    const error = new Error('User profile not found.');
-    error.statusCode = 404;
     throw error;
   }
 

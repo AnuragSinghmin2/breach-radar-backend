@@ -186,6 +186,29 @@ const addDomainExpiryJob = async (task = 'domain-expiry-checks') => {
   );
 };
 
+const removeWorkspaceScanJobs = async (scanIds = []) => {
+  if (!scanQueue || !Array.isArray(scanIds) || scanIds.length === 0) {
+    return 0;
+  }
+
+  let removedCount = 0;
+
+  for (const scanId of scanIds) {
+    if (!scanId) continue;
+
+    try {
+      const job = await scanQueue.getJob(`scan-${scanId}`);
+      if (!job) continue;
+      await job.remove();
+      removedCount += 1;
+    } catch (error) {
+      logger.warn(`Failed to remove queued scan job for ${scanId}: ${error.message}`);
+    }
+  }
+
+  return removedCount;
+};
+
 const getScanQueue = () => scanQueue;
 
 module.exports = {
@@ -196,6 +219,7 @@ module.exports = {
   addMonitoringJob,
   addSslMonitoringJob,
   addDomainExpiryJob,
+  removeWorkspaceScanJobs,
   getScanQueue,
   runScanInProcess
 };

@@ -31,7 +31,24 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Public support form limiter (max 5 tickets per IP every 10 minutes)
+const supportTicketLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  message: {
+    success: false,
+    message: 'Too many support ticket submissions. Please try again after 10 minutes.'
+  },
+  handler: (req, res, next, options) => {
+    logger.warn(`Support ticket rate limit exceeded by IP: ${req.ip} on: ${req.originalUrl}`);
+    res.status(options.statusCode).send(options.message);
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 module.exports = {
   generalLimiter,
-  authLimiter
+  authLimiter,
+  supportTicketLimiter
 };

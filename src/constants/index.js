@@ -94,6 +94,35 @@ const EXPIRY_THRESHOLDS = {
   HIGH_DAYS: 7
 };
 
+const SUPPORT_TICKET_CATEGORIES = [
+  'Technical Issue',
+  'Billing',
+  'Sales',
+  'Feature Request',
+  'Bug Report',
+  'General Inquiry',
+  'Other'
+];
+
+const SUPPORT_TICKET_PRIORITIES = [
+  'Low',
+  'Medium',
+  'High'
+];
+
+const SUPPORT_TICKET_STATUSES = [
+  'Open',
+  'In Progress',
+  'Waiting for Customer',
+  'Resolved',
+  'Closed'
+];
+
+const SUPPORT_TICKET_SOURCES = [
+  'Landing Page',
+  'User Panel'
+];
+
 module.exports = {
   USER_ROLES,
   WORKSPACE_ROLES,
@@ -110,5 +139,9 @@ module.exports = {
   ALERT_STATUS,
   MONITORING_EVENT_TYPES,
   MONITORING_EVENT_STATUS,
-  EXPIRY_THRESHOLDS
+  EXPIRY_THRESHOLDS,
+  SUPPORT_TICKET_CATEGORIES,
+  SUPPORT_TICKET_PRIORITIES,
+  SUPPORT_TICKET_STATUSES,
+  SUPPORT_TICKET_SOURCES
 };
