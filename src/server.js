@@ -19,7 +19,7 @@ const { startMonitoringScheduler } = require('./schedulers/monitoring.scheduler'
 const logger = require('./config/logger');
 const { validateRazorpayEnv } = require('./config/razorpay');
 
-const PORT = process.env.PORT || 5000;
+const PORT = Number(process.env.PORT) || 8080;
 const server = http.createServer(app);
 
 function validateStartupConfig() {
@@ -49,16 +49,21 @@ function validateStartupConfig() {
   }
 }
 
-const startServer = async () => {
+const initializeBackgroundServices = async () => {
   try {
-    // 1. Establish Database Connection
+    logger.info('Initializing background services...');
     validateStartupConfig();
 
-    await connectDB();
-
-    // 1b. Seed database with initial configs and mock records
-    const dbSeeder = require('./config/dbSeeder');
-    await dbSeeder();
+    // 1. Establish Database Connection
+    try {
+      await connectDB();
+      
+      // 1b. Seed database with initial configs and mock records
+      const dbSeeder = require('./config/dbSeeder');
+      await dbSeeder();
+    } catch (dbError) {
+      logger.error(`Database connection or seeding failed: ${dbError.message}`);
+    }
 
     // 2. Establish Redis and background workers when available
     const redis = connectRedis();
@@ -76,18 +81,27 @@ const startServer = async () => {
         logger.warn(`Queue/worker setup skipped: ${queueError.message}. Mock scans will run in-process.`);
       }
     } else {
-      logger.warn('Redis unavailable. Scans will run in-process via background jobs.');
+      logger.warn('Redis unavailable or disabled. Scans will run in-process via background jobs.');
     }
 
     startMonitoringScheduler();
     startSubscriptionExpiryWorker();
+    
+    logger.info('All background services initialization completed.');
+  } catch (error) {
+    logger.error(`Background services initialization failed: ${error.message}`);
+  }
+};
 
-    // 4. Start HTTP Server Listener
-    server.listen(PORT, () => {
+const startServer = () => {
+  try {
+    // Start HTTP Server Listener immediately on 0.0.0.0 to satisfy Cloud Run startup probes
+    server.listen(PORT, '0.0.0.0', () => {
       logger.info(`Server listening on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode.`);
+      initializeBackgroundServices();
     });
   } catch (error) {
-    logger.error(`Critical server initialization crash: ${error.message}`);
+    logger.error(`Critical server listener startup crash: ${error.message}`);
     process.exit(1);
   }
 };
