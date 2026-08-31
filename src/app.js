@@ -70,17 +70,23 @@ const logger = require('./config/logger');
 
 const app = express();
 
-const defaultCorsOrigins = [
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost:5180',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:5174',
-  'http://127.0.0.1:5180',
-   'https://pentestradar.com',
-  'https://www.pentestradar.com',
-  'https://breach-radar-frontend-539618567961.europe-west1.run.app'
-];
+const defaultCorsOrigins = process.env.NODE_ENV === 'production'
+  ? [
+      'https://pentestradar.com',
+      'https://www.pentestradar.com',
+      'https://breach-radar-frontend-539618567961.europe-west1.run.app'
+    ]
+  : [
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'http://localhost:5180',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:5174',
+      'http://127.0.0.1:5180',
+      'https://pentestradar.com',
+      'https://www.pentestradar.com',
+      'https://breach-radar-frontend-539618567961.europe-west1.run.app'
+    ];
 
 const corsOrigins = [
   ...defaultCorsOrigins,

@@ -10,7 +10,9 @@ const connectDB = async () => {
     
     const isProduction = process.env.NODE_ENV === 'production';
     if (isProduction && (!process.env.MONGODB_URI || connUri.includes('localhost') || connUri.includes('127.0.0.1'))) {
-      logger.error('[database] Localhost MongoDB or fallback URI is configured, but environment is production. A remote MongoDB Atlas cluster connection string is required.');
+      const errorMsg = '[database] Localhost MongoDB or fallback URI is configured, but environment is production. A remote MongoDB Atlas cluster connection string (MONGODB_URI) is required.';
+      logger.error(errorMsg);
+      throw new Error(errorMsg);
     }
 
     logger.info('Connecting to MongoDB...');

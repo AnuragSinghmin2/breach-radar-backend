@@ -12,6 +12,18 @@ const passportSetup = (app) => {
     return;
   }
 
+  let callbackURL = process.env.GOOGLE_CALLBACK_URL;
+  if (!callbackURL && process.env.BACKEND_URL) {
+    callbackURL = `${process.env.BACKEND_URL}/api/v1/auth/google/callback`;
+  }
+  if (!callbackURL) {
+    callbackURL = 'http://localhost:5000/api/v1/auth/google/callback';
+  }
+
+  if (process.env.NODE_ENV === 'production' && (callbackURL.includes('localhost') || callbackURL.includes('127.0.0.1'))) {
+    throw new Error('[passport] GOOGLE_CALLBACK_URL must be configured with a non-localhost URL in production when Google OAuth is enabled.');
+  }
+
   app.use(passport.initialize());
 
   passport.use(
@@ -19,7 +31,7 @@ const passportSetup = (app) => {
       {
         clientID: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/api/v1/auth/google/callback',
+        callbackURL,
         scope: ['profile', 'email'],
       },
       async (accessToken, refreshToken, profile, done) => {

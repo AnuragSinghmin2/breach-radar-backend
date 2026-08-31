@@ -82,6 +82,12 @@ const dbSeeder = async () => {
     }
     logger.info('Subscription plans seeded/updated successfully.');
 
+    if (process.env.NODE_ENV === 'production') {
+      logger.info('Production mode detected. Skipping seeding of mock admin, user accounts, tickets, transactions, and test domains.');
+      logger.info('Database seeder finished checking/seeding.');
+      return;
+    }
+
     // 2. Seed Super Admin User
     const superAdminEmail = 'superadmin@breachradar.com';
     let superAdmin = await User.findOne({ email: superAdminEmail });

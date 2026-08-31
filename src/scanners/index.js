@@ -31,8 +31,7 @@ const { scanDirectoryListing } = require('./directoryListing.scanner');
 const { scanBackupFileExposure } = require('./backupFileExposure.scanner');
 const { scanGitRepositoryExposure } = require('./gitRepositoryExposure.scanner');
 const { scanDebugMode } = require('./debugMode.scanner');
-
-
+const logger = require('../config/logger');
 
 const ADAPTERS = {
   ssl: scanSsl,
@@ -120,14 +119,12 @@ function resolveEnabledScanners(checks = {}) {
     enabled.push('csrf');
     enabled.push('openRedirect');
   }
-  
+
   if (checks.ssrf || checks.owasp) {
     enabled.push('ssrf');
     enabled.push('hostHeaderInjection');
     enabled.push('httpRequestSmuggling');
   }
-
-
 
   if (enabled.length === 0) {
     enabled.push('ssl', 'headers');
@@ -136,33 +133,61 @@ function resolveEnabledScanners(checks = {}) {
   return [...new Set(enabled)];
 }
 
-// authContext (optional) is produced by authSession.service.js for
-// Authenticated Scan Mode: { cookieJar: 'name=value; ...', headers: { Authorization?: 'Bearer ...' } }
-// Existing adapters (ssl, headers, dns, auth, etc.) only declare one
-// parameter, so passing this through is a no-op for all of them today.
-// Future auth-aware scanners (e.g. an IDOR scanner) can read it as their 2nd arg.
+// FIX: 30 second timeout per scanner — prevents infinite hang
+const SCANNER_TIMEOUT_MS = 30000;
+
+function withTimeout(promise, scannerName) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`Scanner "${scannerName}" timed out after ${SCANNER_TIMEOUT_MS / 1000}s`)),
+        SCANNER_TIMEOUT_MS
+      )
+    )
+  ]);
+}
+
 async function runScanners(domain, checks = {}, authContext = null, scanContext = null) {
   const enabled = resolveEnabledScanners(checks);
-  const results = [];
 
-  for (const scannerName of enabled) {
+  logger.info(`Running ${enabled.length} scanners for ${domain}: ${enabled.join(', ')}`);
+
+  const promises = enabled.map(async (scannerName) => {
     const adapter = ADAPTERS[scannerName];
-    if (!adapter) continue;
+    if (!adapter) {
+      logger.warn(`No adapter found for scanner: ${scannerName}`);
+      return null;
+    }
 
     try {
-      const result = await adapter(domain, authContext, scanContext);
-      results.push(result);
+      logger.info(`[scanner] Starting: ${scannerName} on ${domain}`);
+
+      const result = await withTimeout(
+        adapter(domain, authContext, scanContext),
+        scannerName
+      );
+
+      const findingCount = result?.findings?.length ?? 0;
+      logger.info(`[scanner] Done: ${scannerName} — ${findingCount} finding(s)`);
+
+      return result;
     } catch (error) {
-      results.push({
+      logger.warn(`[scanner] Failed: ${scannerName} — ${error.message}`);
+      return {
         scanner: scannerName,
         success: false,
         findings: [],
         metadata: { error: error.message }
-      });
+      };
     }
-  }
+  });
 
+  const settledResults = await Promise.all(promises);
+  const results = settledResults.filter(Boolean);
   const findings = results.flatMap((result) => result.findings || []);
+
+  logger.info(`All scanners done for ${domain}. Total findings: ${findings.length}`);
 
   return {
     scanners: enabled,
