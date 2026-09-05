@@ -1,8 +1,13 @@
 const mongoose = require('mongoose');
 const logger = require('./logger');
-const dns = require('dns');
-
-dns.setServers(['8.8.8.8', '1.1.1.1']);
+// Set fallback DNS servers only if custom DNS is explicitly requested
+if (process.env.CUSTOM_DNS_SERVERS) {
+  try {
+    dns.setServers(process.env.CUSTOM_DNS_SERVERS.split(',').map((s) => s.trim()));
+  } catch (dnsErr) {
+    logger.warn(`[database] Failed to set custom DNS servers: ${dnsErr.message}`);
+  }
+}
 
 const connectDB = async () => {
   try {

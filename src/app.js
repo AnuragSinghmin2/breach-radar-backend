@@ -31,6 +31,7 @@ const integrationRoutes = require('./routes/integration.routes');
 const activityLogRoutes = require('./routes/activityLog.routes');
 const supportRoutes = require('./routes/support.routes');
 const statsRoutes = require('./routes/stats.routes');
+const pricingRoutes = require('./routes/pricing.routes');
 const testBusinessWorkflowRoutes = require('./routes/testBusinessWorkflow.routes');
 const testBolaWorkflowRoutes = require('./routes/testBolaWorkflow.routes');
 const testBflaWorkflowRoutes = require('./routes/testBflaWorkflow.routes');
@@ -136,9 +137,11 @@ app.use(express.json({
   }
 }));
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads'), {
+const uploadsDir = process.env.UPLOADS_DIR || path.resolve(__dirname, '../uploads');
+app.use('/uploads', express.static(uploadsDir, {
   setHeaders: (res) => {
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Access-Control-Allow-Origin', '*');
   },
 }));
 
@@ -174,6 +177,8 @@ app.use('/api/v1/activity-log', activityLogRoutes);
 app.use('/api/v1/support', supportRoutes);
 app.use('/api/v1/stats', statsRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/v1/pricing', pricingRoutes);
+app.use('/api/pricing', pricingRoutes);
 app.use('/api/v1/test-business-workflow', testBusinessWorkflowRoutes);
 app.use('/api/v1/test-bola', testBolaWorkflowRoutes);
 app.use('/api/v1/test-bfla', testBflaWorkflowRoutes);

@@ -22,6 +22,7 @@ const dbSeeder = async () => {
       {
         name: 'Free',
         displayName: 'Free',
+        description: 'Perfect for individuals getting started',
         price: 0,
         currency: 'INR',
         billingInterval: 'month',
@@ -30,11 +31,14 @@ const dbSeeder = async () => {
         scanLimit: 2,
         sortOrder: 1,
         isActive: true,
+        isPopular: false,
+        ctaText: 'Get Started Free',
         features: ['1 User Seat', '1 Verified Domain', '2 Scans / month', 'Basic Reports', 'Community Support']
       },
       {
         name: 'Starter',
         displayName: 'Starter',
+        description: 'Perfect for small websites & startups',
         price: 999,
         currency: 'INR',
         billingInterval: 'month',
@@ -43,11 +47,14 @@ const dbSeeder = async () => {
         scanLimit: 30,
         sortOrder: 2,
         isActive: true,
+        isPopular: false,
+        ctaText: 'Get Started',
         features: ['3 User Seats', '5 Verified Domains', '30 Scans / month', 'Email Alerts', 'Standard Support', 'Basic API Access']
       },
       {
         name: 'Professional',
         displayName: 'Professional',
+        description: 'Great for growing businesses',
         price: 2999,
         currency: 'INR',
         billingInterval: 'month',
@@ -56,11 +63,14 @@ const dbSeeder = async () => {
         scanLimit: 200,
         sortOrder: 3,
         isActive: true,
+        isPopular: true,
+        ctaText: 'Get Started',
         features: ['10 User Seats', '25 Verified Domains', '200 Scans / month', 'Continuous Monitoring', 'Full API Access', 'Priority Support', 'Compliance Reports']
       },
       {
         name: 'Enterprise',
         displayName: 'Enterprise',
+        description: 'For large organizations',
         price: 9999,
         currency: 'INR',
         billingInterval: 'month',
@@ -69,18 +79,20 @@ const dbSeeder = async () => {
         scanLimit: 999999,
         sortOrder: 4,
         isActive: true,
-        features: ['Unlimited User Seats', 'Unlimited Verified Domains', 'Unlimited Scans', 'Custom Scanning Agents', 'SAML SSO Integration', 'Dedicated TAM', 'Custom Integrations']
+        isPopular: false,
+        ctaText: 'Get Started',
+        features: ['Unlimited User Seats', 'Unlimited Domains', 'Unlimited Scans', 'Custom Scanning Agents', 'SAML SSO Integration', 'Dedicated TAM', 'Custom Integrations']
       }
     ];
 
     for (const planDef of planDefinitions) {
       await SubscriptionPlan.findOneAndUpdate(
         { name: planDef.name },
-        planDef,
+        { $setOnInsert: planDef },
         { upsert: true, new: true }
       );
     }
-    logger.info('Subscription plans seeded/updated successfully.');
+    logger.info('Subscription plans seeded (preserving custom edits).');
 
     if (process.env.NODE_ENV === 'production') {
       logger.info('Production mode detected. Skipping seeding of mock admin, user accounts, tickets, transactions, and test domains.');

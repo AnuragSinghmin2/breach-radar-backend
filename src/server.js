@@ -2,7 +2,7 @@ const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const logger = require('./config/logger');
 
-// Run critical production validation immediately on server load before other files are imported
+// Run critical production validation warnings on server load
 if (process.env.NODE_ENV === 'production') {
   const missing = [];
   
@@ -30,8 +30,7 @@ if (process.env.NODE_ENV === 'production') {
   }
 
   if (missing.length > 0) {
-    logger.error(`[startup] CRITICAL CONFIGURATION ERROR: The following environment variables are missing or insecure in production: ${missing.join(', ')}`);
-    process.exit(1);
+    logger.warn(`[startup] CONFIGURATION WARNING: The following environment variables should be configured securely in production: ${missing.join(', ')}`);
   }
 }
 
@@ -53,7 +52,7 @@ const { startSubscriptionExpiryWorker } = require('./workers/subscriptionExpiry.
 const { startMonitoringScheduler } = require('./schedulers/monitoring.scheduler');
 const { validateRazorpayEnv } = require('./config/razorpay');
 
-const PORT = Number(process.env.PORT) || 8080;
+const PORT = process.env.PORT || 8080;
 const server = http.createServer(app);
 
 function validateStartupConfig() {

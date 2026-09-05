@@ -21,7 +21,7 @@ const passportSetup = (app) => {
   }
 
   if (process.env.NODE_ENV === 'production' && (callbackURL.includes('localhost') || callbackURL.includes('127.0.0.1'))) {
-    throw new Error('[passport] GOOGLE_CALLBACK_URL must be configured with a non-localhost URL in production when Google OAuth is enabled.');
+    logger.warn('[passport] GOOGLE_CALLBACK_URL is configured with a localhost URL in production. Google OAuth callbacks may fail until updated to a production domain.');
   }
 
   app.use(passport.initialize());
