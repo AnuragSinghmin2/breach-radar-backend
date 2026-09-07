@@ -4,7 +4,7 @@ const router = express.Router();
 // Mock administrative user list
 const adminUsers = [
   { id: 1, email: 'admin@securescan.local', role: 'admin' },
-  { id: 2, email: 'user@breachradar.com', role: 'user' },
+  { id: 2, email: 'user@pentestradar.com', role: 'user' },
   { id: 3, email: 'usera@securescan.local', role: 'user' },
   { id: 4, email: 'userb@securescan.local', role: 'user' }
 ];

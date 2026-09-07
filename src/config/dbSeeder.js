@@ -101,8 +101,8 @@ const dbSeeder = async () => {
     }
 
     // 2. Seed Super Admin User
-    const superAdminEmail = 'superadmin@breachradar.com';
-    let superAdmin = await User.findOne({ email: superAdminEmail });
+    const superAdminEmail = 'superadmin@pentestradar.com';
+    let superAdmin = await User.findOne({ $or: [{ email: superAdminEmail }, { email: 'superadmin@breachradar.com' }] });
     if (!superAdmin) {
       logger.info(`Creating default Super Admin user (${superAdminEmail})...`);
       const salt = await bcrypt.genSalt(10);
@@ -133,12 +133,12 @@ const dbSeeder = async () => {
       superAdmin.preferences.activeWorkspaceId = workspace._id;
       await superAdmin.save();
 
-      logger.info('Super Admin user created successfully. User: superadmin@breachradar.com / Password123!');
+      logger.info(`Super Admin user created successfully. User: ${superAdminEmail} / Password123!`);
     }
 
     // 3. Seed Normal Test User & their Subscription Architecture
-    const testUserEmail = 'user@breachradar.com';
-    let testUser = await User.findOne({ email: testUserEmail });
+    const testUserEmail = 'user@pentestradar.com';
+    let testUser = await User.findOne({ $or: [{ email: testUserEmail }, { email: 'user@breachradar.com' }] });
     if (!testUser) {
       logger.info(`Creating default test user (${testUserEmail})...`);
       const salt = await bcrypt.genSalt(10);
